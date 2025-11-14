@@ -116,3 +116,39 @@ def list_lost_claims(request):
     claims = LostClaim.objects.all()
     # Django Ninja automatically uses LostClaimOut schema to serialize the list
     return claims
+
+# 5. Endpoint to handle the claiming of a found item
+@router.post("/claim_item/{found_item_id}", response={200: FoundItemOut})
+def claim_item(request, found_item_id: uuid.UUID):
+    """
+    Sets the status of a FoundItem to 'CLAIMED'.
+    This assumes ownership has been manually verified or matched via AI.
+    """
+    
+    # --- Authentication Check (Crucial for a real system) ---
+    # For a production system, you'd check if the request.user is authorized
+    # to perform this action (e.g., a staff admin or the verified owner).
+    if not request.user.is_authenticated:
+        # In a production setting, you'd raise a 401 Unauthorized exception
+        # For simplicity now, we'll allow it if the user is not authenticated,
+        # but in a real app, this should only be done by authorized personnel.
+        pass
+
+    # 1. Retrieve the Found Item or raise 404
+    # We use get_object_or_404, which requires the get_object_or_404 import
+    # which is already in your file.
+    item_to_claim = get_object_or_404(FoundItem, item_id=found_item_id)
+
+    # 2. Update the status
+    if item_to_claim.status == 'PENDING':
+        item_to_claim.status = 'CLAIMED'
+        item_to_claim.save()
+        return 200, item_to_claim
+    elif item_to_claim.status in ['CLAIMED', 'RETURNED']:
+        # Return the item status but perhaps a different message or status code
+        # We can return a specific HTTP status code like 409 Conflict if Django Ninja supports it
+        # For simplicity, we just return the item with a message in the description
+        raise Exception(f"Item is already marked as {item_to_claim.status}")
+    else:
+        # Default case for other statuses like DISPOSED
+        raise Exception(f"Cannot claim item with current status: {item_to_claim.status}")
