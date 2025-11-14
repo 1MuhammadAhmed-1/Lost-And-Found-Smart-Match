@@ -1,5 +1,4 @@
 # core/ai_tools.py
-
 from core.models import FoundItem, LostClaim, RegUser
 from datetime import date
 from fuzzywuzzy import fuzz 
