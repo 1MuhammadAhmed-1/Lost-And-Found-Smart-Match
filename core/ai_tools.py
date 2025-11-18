@@ -51,7 +51,7 @@ def search_for_matches(query: str, location: str = None) -> str:
         combined_score = fuzz.token_sort_ratio(full_query, item_text)
         
         # Threshold for high confidence match
-        if combined_score >= 75: 
+        if combined_score >= 50: 
             matches.append({
                 "score": combined_score,
                 "item_id": item.item_id.hex, # Use hex string for simple display
