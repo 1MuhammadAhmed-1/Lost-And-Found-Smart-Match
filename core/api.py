@@ -1,14 +1,44 @@
-from ninja import Router, Schema, Field
+from ninja import Router, Schema, Field, NinjaAPI
+from ninja.security import HttpBearer
 from typing import List
 from django.shortcuts import get_object_or_404
 from .models import FoundItem, LostClaim, RegUser # Removed RegUser import if not used globally
-from ninja.orm import ModelSchema # <<< NEW IMPORT
-
+from ninja.orm import ModelSchema
 import uuid 
 import datetime 
+from core import ai_tools
+from google import genai
+from ninja.orm import ModelSchema
+
+class GlobalAuth(HttpBearer):
+    def authenticate(self, request, token):
+        from rest_framework.authtoken.models import Token
+        try:
+            token_obj = Token.objects.get(key=token)
+            return token_obj.user
+        except Token.DoesNotExist:
+            return None
+
+# Initialize the Gemini Client
+try:
+    client = genai.Client()
+except Exception as e:
+    print(f"ERROR: Failed to initialize Gemini Client. Check GEMINI_API_KEY. {e}")
+    client = None
+
+# Mapping of tool function names (strings) to actual Python functions (objects)
+# This is how the model calls the right tool
+AVAILABLE_TOOLS = {
+    "report_found_item": ai_tools.report_found_item,
+    "search_for_matches": ai_tools.search_for_matches,
+    "claim_found_item_by_id": ai_tools.claim_found_item_by_id,
+}
+
+# The model to use for chat
+MODEL_NAME = "gemini-2.5-flash"
 
 # Initialize the Router
-router = Router()
+router = Router(auth=GlobalAuth())
 
 # -----------------
 # Pydantic Schemas
@@ -44,6 +74,14 @@ class LostClaimOut(ModelSchema):
         model = LostClaim
         fields = ('claim_id', 'item_name', 'description', 'approx_location_lost', 'date_lost', 'is_matched', 'contact_email')
 
+# Schema for the chat input
+class ChatIn(Schema):
+    message: str
+    
+# Schema for the chat output
+class ChatOut(Schema):
+    response: str
+
 # -----------------
 # API Endpoints
 # -----------------
@@ -58,6 +96,7 @@ class LostClaimOut(ModelSchema):
 # 1. Endpoint to register a new found item
 @router.post("/found_items", response={201: FoundItemOut})
 def create_found_item(request, payload: FoundItemIn):
+    # request.user is guaranteed to be a RegUser instance if logged in, otherwise None (handled by null=True)
     reporter = request.user if request.user.is_authenticated else None
     
     found_item = FoundItem.objects.create(
@@ -69,21 +108,13 @@ def create_found_item(request, payload: FoundItemIn):
         date_found=datetime.date.today(),
         reported_by=reporter 
     )
-    # ModelSchema automatically handles the serialization of the model instance
-    return 201, found_item # Return the model instance directly!
-# ... rest of the API endpoints remain the same ...
+    return 201, found_item
 
 # 2. Endpoint to register a new lost claim
 @router.post("/lost_claims", response={201: LostClaimOut})
 def create_lost_claim(request, payload: LostClaimIn):
-    # This requires a logged-in user to set the 'owner' ForeignKey, which is NOT NULL.
-    # We use request.user for this, which is available in Django views.
+    # AUTH IS NOW HANDLED BY THE ROUTER: request.user is guaranteed to be a RegUser instance
     
-    # NOTE: You will need to ensure a user is logged in for this to work in a real setup.
-    if not request.user.is_authenticated:
-         # Replace with proper HTTP response in a real app
-         raise Exception("Authentication required for LostClaim")
-         
     lost_claim = LostClaim.objects.create(
         item_name=payload.item_name,
         description=payload.description,
@@ -91,7 +122,7 @@ def create_lost_claim(request, payload: LostClaimIn):
         contact_email=payload.contact_email,
         is_matched=False,
         date_lost=datetime.date.today(),
-        owner=request.user # CRITICAL: Sets the required owner field
+        owner=request.user # CRITICAL: Correctly links the user
     )
     return 201, lost_claim
 
@@ -152,3 +183,77 @@ def claim_item(request, found_item_id: uuid.UUID):
     else:
         # Default case for other statuses like DISPOSED
         raise Exception(f"Cannot claim item with current status: {item_to_claim.status}")
+
+
+
+# core/api.py
+
+# ... existing code ...
+
+@router.post("/chat", response=ChatOut)
+def chat_with_llm(request, payload: ChatIn):
+    """
+    Handles conversational requests, leveraging Gemini's Function Calling
+    to interact with the database using defined tools.
+    """
+    if not client:
+        return {"response": "System maintenance: AI client is currently unavailable."}
+        
+    try:
+        # 1. Start the conversation history with the user's message
+        # CORRECTED: Use Part constructor with explicit 'text' keyword argument
+        chat_history = [
+            genai.types.Content(
+                role="user", 
+                parts=[genai.types.Part(text=payload.message)] # <<< FIX 1
+            )
+        ]
+        
+        # 2. Configure the model call with the available tools
+        config = genai.types.GenerateContentConfig(
+            tools=list(AVAILABLE_TOOLS.values())
+        )
+
+        # 3. Call the model and manage the multi-step process
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=chat_history,
+            config=config,
+        )
+
+        # 4. Check if the model decided to call a function/tool
+        if response.function_calls:
+            function_call = response.function_calls[0]
+            function_name = function_call.name
+            tool_function = AVAILABLE_TOOLS.get(function_name)
+            
+            if tool_function:
+                # 5. Execute the actual Python function (database tool)
+                kwargs = dict(function_call.args)
+                tool_output = tool_function(**kwargs)
+                
+                # 6. Send the tool output back to the model for a conversational response
+                chat_history.append(response.candidates[0].content)
+                # CORRECTED: Use Part constructor with explicit 'text' keyword argument
+                chat_history.append(
+                    genai.types.Content(
+                        role="tool",
+                        parts=[genai.types.Part(text=tool_output)], # <<< FIX 2
+                    )
+                )
+
+                # 7. Final call to get the conversational response
+                final_response = client.models.generate_content(
+                    model=MODEL_NAME,
+                    contents=chat_history,
+                )
+                return {"response": final_response.text}
+            
+            else:
+                return {"response": f"AI requested an unknown tool: {function_name}"}
+
+        # 8. If no function call, return the model's direct response
+        return {"response": response.text}
+
+    except Exception as e:
+        return {"response": f"An unexpected error occurred during the AI process. Error: {e}"}
