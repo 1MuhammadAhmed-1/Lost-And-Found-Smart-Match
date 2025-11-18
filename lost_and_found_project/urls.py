@@ -18,7 +18,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from ninja import NinjaAPI
-from core.api import router as core_router # <--- This import must find 'router'
+from core.api import router as core_router 
+from rest_framework.authtoken import views
 
 # 1. Import your API router
 from core.api import router as core_router
@@ -39,4 +40,7 @@ urlpatterns = [
     
     # Django Ninja API entry point
     path("api/", api.urls),
+
+    # URL to get a token: POST to this with username/password
+    path('api/token-auth/', views.obtain_auth_token)
 ]
