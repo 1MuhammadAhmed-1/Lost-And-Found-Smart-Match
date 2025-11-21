@@ -66,11 +66,12 @@ def search_for_matches(query: str, location: str = None) -> str:
         return "No high-confidence matches were found in the system. Suggest the user submit a formal lost claim."
         
     result_strings = [
-        f"Match Score: {m['score']}%, Item: {m['name']} found at {m['found_at']} (ID: {m['item_id'][:8]}...)"
+        # CRITICAL CHANGE: Return the full UUID for the LLM to use
+        f"Match Score: {m['score']}%, Item: {m['name']} found at {m['found_at']} (Item ID: {m['item_id']})"
         for m in matches[:3]
     ]
     
-    return "Potential Matches Found:\n" + "\n".join(result_strings)
+    return "Potential Matches Found:\n" + "\n".join(result_strings) + "\n\nUser-facing ID is the first 8 characters (e.g., 908e545b...). When calling 'claim_found_item_by_id', ALWAYS use the complete 32-character FULL_ID provided above."
 
 # --- 3. TOOL TO CLAIM AN ITEM (Similar to your API endpoint) ---
 def claim_found_item_by_id(found_item_id_hex: str) -> str:
@@ -86,7 +87,7 @@ def claim_found_item_by_id(found_item_id_hex: str) -> str:
         if item.status == 'PENDING':
             item.status = 'CLAIMED'
             item.save()
-            return f"SUCCESS: Item '{item.item_name}' (ID: {found_item_id_hex[:8]}...) has been marked as claimed."
+            return f"SUCCESS: The item '{item.item_name}' has been successfully marked as CLAIMED and the process is complete. Thank the user for the claim."        
         else:
             return f"Item '{item.item_name}' is already marked as {item.status} and cannot be claimed."
             

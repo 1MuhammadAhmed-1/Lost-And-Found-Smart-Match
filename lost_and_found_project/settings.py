@@ -19,6 +19,7 @@ SECRET_KEY = 'django-insecure-33%^8t_h#99t0a(1001-t!5h$b238n91t6@#e$b!d#91d'
 # If DEBUG=False, it must contain domain names or IP addresses.
 ALLOWED_HOSTS = []
 
+# --- FIX 1: ADD CORS HEADERS APP ---
 INSTALLED_APPS = [
     # Default Django Apps...
     "django.contrib.admin",
@@ -29,7 +30,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     'rest_framework.authtoken',
-    "core",  # <-- Your new app
+    "corsheaders",  # <-- ADDED: CORS Headers
+    "core",# <-- Your new app
 ]
 
 # 2. Configure the MongoDB database connection using os.environ.get
@@ -43,9 +45,11 @@ DATABASES = {
 # 1. Add your custom User Model setting
 AUTH_USER_MODEL = 'core.RegUser' 
 
+# --- FIX 2: ADD CORS MIDDLEWARE ---
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # <-- ADDED: Must be high up
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -77,6 +81,27 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
 }
+
+# --- FIX 3: CORS Configuration ---
+# Allow all origins for development (safer would be: http://localhost:3000)
+CORS_ALLOW_ALL_ORIGINS = True 
+
+# CRITICAL FIX: Explicitly allow the Authorization header
+# This ensures the browser doesn't block the POST request because of the 
+# 'Authorization: Token ...' header being non-standard.
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization', # <--- MUST BE PRESENT
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+# -----------------------------------
+
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'

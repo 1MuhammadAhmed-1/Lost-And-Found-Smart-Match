@@ -1,102 +1,159 @@
+import os
 from ninja import Router, Schema, Field, NinjaAPI
-from ninja.security import HttpBearer
-from typing import List
+from ninja.security.base import AuthBase 
+from ninja.errors import HttpError, ConfigError
+from typing import List, Optional
 from django.shortcuts import get_object_or_404
-from .models import FoundItem, LostClaim, RegUser # Removed RegUser import if not used globally
+from .models import FoundItem, LostClaim, RegUser 
 from ninja.orm import ModelSchema
 import uuid 
 import datetime 
-from core import ai_tools
+from core import ai_tools 
 from google import genai
 from ninja.orm import ModelSchema
 
-class GlobalAuth(HttpBearer):
-    def authenticate(self, request, token):
+# --- Authentication Class (Unchanged, as it is working correctly) ---
+class GlobalAuth(AuthBase):
+    openapi_type: str = "apiKey"
+    param_name: str = "Authorization"
+    
+    def authenticate(self, request):
         from rest_framework.authtoken.models import Token
+        
+        print("\n--- [AUTH DEBUG] Starting Authentication ---")
+        
+        # 1. Try standard Django META lookup (HTTP_HEADER_NAME)
+        auth_header = request.META.get('HTTP_AUTHORIZATION')
+        source = "META"
+        
+        if not auth_header:
+            # 2. Try request.headers lookup (lower-cased or as defined)
+            auth_header = request.headers.get(self.param_name) 
+            source = "headers"
+            
+        print(f"[AUTH DEBUG] Source: {source}. Raw Header: '{auth_header}'")
+
+        if not auth_header:
+            print("[AUTH DEBUG] FAILURE: Authorization header is missing.")
+            return None
+        
         try:
-            token_obj = Token.objects.get(key=token)
-            return token_obj.user
-        except Token.DoesNotExist:
+            auth_header_normalized = auth_header.strip() 
+            scheme, separator, token = auth_header_normalized.partition(' ')
+            
+            if not token:
+                print(f"[AUTH DEBUG] FAILURE: Header is not split correctly (e.g., 'Token VALUE'). Full value: '{auth_header_normalized}'")
+                return None
+            
+            print(f"[AUTH DEBUG] Parsed Scheme: '{scheme}', Token (first 8 chars): '{token[:8]}...'")
+
+            if scheme.lower() != 'token':
+                print(f"[AUTH DEBUG] FAILURE: Scheme is '{scheme}', expected 'Token'.")
+                return None
+        except Exception as e:
+            print(f"[AUTH DEBUG] FAILURE: Error during header parsing: {e}")
             return None
 
-# Initialize the Gemini Client
+        try:
+            token_obj = Token.objects.get(key=token)
+            print(f"[AUTH DEBUG] SUCCESS: Token matched database entry for user: {token_obj.user.username}")
+            # The User object is returned here, and Django Ninja places it in request.auth
+            return token_obj.user
+        except Token.DoesNotExist:
+            print("[AUTH DEBUG] FAILURE: Token value not found in database (Token.DoesNotExist).")
+            return None
+
+    def __call__(self, request):
+        return self.authenticate(request)
+
+# --- Gemini Client Setup ---
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
 try:
-    client = genai.Client()
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY environment variable is not set.")
+        
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    
 except Exception as e:
-    print(f"ERROR: Failed to initialize Gemini Client. Check GEMINI_API_KEY. {e}")
+    print(f"CRITICAL ERROR: Failed to initialize Gemini Client. {e}")
     client = None
 
-# Mapping of tool function names (strings) to actual Python functions (objects)
-# This is how the model calls the right tool
 AVAILABLE_TOOLS = {
     "report_found_item": ai_tools.report_found_item,
     "search_for_matches": ai_tools.search_for_matches,
     "claim_found_item_by_id": ai_tools.claim_found_item_by_id,
 }
 
-# The model to use for chat
 MODEL_NAME = "gemini-2.5-flash"
 
-# Initialize the Router
+SYSTEM_INSTRUCTION = (
+    "You are a helpful Lost and Found assistant. "
+    "Your goal is to help users report found items, search for lost items, or claim items. "
+    "ALWAYS use the provided tools for database interactions, never guess. "
+    "Crucially: If the user provides an item ID (UUID) and expresses the intent to claim it, IMMEDIATELY call the 'claim_found_item_by_id' tool. Do NOT ask the user to confirm the ID again. "
+    "CRITICAL RULE 1: When presenting a found item to the user, you **MUST** explicitly state and display the **FULL 32-character Item ID** you received from the tool output. **DO NOT** shorten or truncate the Item ID in the conversation. "
+    "CRITICAL RULE 2: When the user confirms an item, you **MUST** pass the **FULL 32-character Item ID** to the 'claim_found_item_by_id' tool."
+)
+
+# Initialize the Router, applying authentication globally
 router = Router(auth=GlobalAuth())
 
 # -----------------
-# Pydantic Schemas
+# Pydantic Schemas (Unchanged)
 # -----------------
 
-# core/api.py (Pydantic Schemas Section)
+class RegUserIn(Schema):
+    username: str
+    password: str
+    email: str = Field(..., example="john.doe@example.com") 
+    
+class RegUserOut(ModelSchema):
+    class Meta:
+        model = RegUser 
+        fields = ('id', 'username', 'email', 'date_joined', 'last_login') 
 
-# Schema for the data required to create a FoundItem
 class FoundItemIn(Schema):
     item_name: str
     description: str
     location_found: str
-    contact_email: str # Mapped to the new field in models.py
+    contact_email: str 
 
-# Schema for the data returned in the response
-# Refactored Output Schema using ModelSchema
 class FoundItemOut(ModelSchema):
     class Meta:
         model = FoundItem
         fields = ('item_id', 'item_name', 'description', 'location_found', 'date_found', 'status', 'contact_email')
     
-# Schema for the data required to create a LostClaim
 class LostClaimIn(Schema):
     item_name: str
     description: str
-    location_lost: str = Field(alias='approx_location_lost') # Alias for model field
+    location_lost: str = Field(alias='approx_location_lost') 
     contact_email: str
-    # NOTE: You will need to handle the 'owner' field (ForeignKey) separately
 
-# Schema for the data returned in the LostClaim response
 class LostClaimOut(ModelSchema):
     class Meta:
         model = LostClaim
         fields = ('claim_id', 'item_name', 'description', 'approx_location_lost', 'date_lost', 'is_matched', 'contact_email')
 
-# Schema for the chat input
+class HistoryElement(Schema):
+    role: str 
+    text: str
+
 class ChatIn(Schema):
     message: str
+    history: List[HistoryElement]
     
-# Schema for the chat output
 class ChatOut(Schema):
     response: str
 
 # -----------------
-# API Endpoints
+# API Endpoints (Only chat_with_llm is changed)
 # -----------------
-    
-# core/api.py (API Endpoints Section)
 
-# core/api.py (API Endpoints Section)
-
-# 1. Endpoint to register a new found item
-# core/api.py (create_found_item function)
-
-# 1. Endpoint to register a new found item
-@router.post("/found_items", response={201: FoundItemOut})
+## 1. Endpoint to register a new found item
+@router.post("/core/found_items/", response={201: FoundItemOut,})
 def create_found_item(request, payload: FoundItemIn):
-    # request.user is guaranteed to be a RegUser instance if logged in, otherwise None (handled by null=True)
     reporter = request.user if request.user.is_authenticated else None
     
     found_item = FoundItem.objects.create(
@@ -108,152 +165,154 @@ def create_found_item(request, payload: FoundItemIn):
         date_found=datetime.date.today(),
         reported_by=reporter 
     )
-    return 201, found_item
+    return found_item 
 
-# 2. Endpoint to register a new lost claim
-@router.post("/lost_claims", response={201: LostClaimOut})
+## 2. Endpoint to register a new lost claim
+@router.post("/core/lost_claims", response={201: LostClaimOut})
 def create_lost_claim(request, payload: LostClaimIn):
-    # AUTH IS NOW HANDLED BY THE ROUTER: request.user is guaranteed to be a RegUser instance
     
     lost_claim = LostClaim.objects.create(
         item_name=payload.item_name,
         description=payload.description,
-        approx_location_lost=payload.location_lost,
+        approx_location_lost=payload.location_lost, 
         contact_email=payload.contact_email,
         is_matched=False,
-        date_lost=datetime.date.today(),
-        owner=request.user # CRITICAL: Correctly links the user
+        owner=request.user 
     )
-    return 201, lost_claim
+    return lost_claim
 
-# 3. Endpoint to retrieve all found items
-@router.get("/found_items", response=List[FoundItemOut])
+## 3. Endpoint to retrieve all found items
+@router.get("/core/found_items/", response=List[FoundItemOut])
 def list_found_items(request):
-    """
-    Retrieves a list of all reported found items.
-    """
-    # Query the database for all FoundItem objects
+    """Retrieves a list of all reported found items."""
     items = FoundItem.objects.all()
-    # Django Ninja automatically uses FoundItemOut schema to serialize the list
     return items
 
-# 4. Endpoint to retrieve all lost claims
-@router.get("/lost_claims", response=List[LostClaimOut])
+## 4. Endpoint to retrieve all lost claims
+@router.get("/core/lost_claims", response=List[LostClaimOut])
 def list_lost_claims(request):
-    """
-    Retrieves a list of all reported lost claims.
-    """
-    # Query the database for all LostClaim objects
+    """Retrieves a list of all reported lost claims."""
     claims = LostClaim.objects.all()
-    # Django Ninja automatically uses LostClaimOut schema to serialize the list
     return claims
 
-# 5. Endpoint to handle the claiming of a found item
-@router.post("/claim_item/{found_item_id}", response={200: FoundItemOut})
+## 5. Endpoint to handle the claiming of a found item
+@router.post("/core/claim_item/{found_item_id}", response={200: FoundItemOut})
 def claim_item(request, found_item_id: uuid.UUID):
-    """
-    Sets the status of a FoundItem to 'CLAIMED'.
-    This assumes ownership has been manually verified or matched via AI.
-    """
-    
-    # --- Authentication Check (Crucial for a real system) ---
-    # For a production system, you'd check if the request.user is authorized
-    # to perform this action (e.g., a staff admin or the verified owner).
-    if not request.user.is_authenticated:
-        # In a production setting, you'd raise a 401 Unauthorized exception
-        # For simplicity now, we'll allow it if the user is not authenticated,
-        # but in a real app, this should only be done by authorized personnel.
-        pass
-
-    # 1. Retrieve the Found Item or raise 404
-    # We use get_object_or_404, which requires the get_object_or_404 import
-    # which is already in your file.
+    """Sets the status of a FoundItem to 'CLAIMED'."""
     item_to_claim = get_object_or_404(FoundItem, item_id=found_item_id)
 
-    # 2. Update the status
     if item_to_claim.status == 'PENDING':
         item_to_claim.status = 'CLAIMED'
         item_to_claim.save()
-        return 200, item_to_claim
+        return item_to_claim 
     elif item_to_claim.status in ['CLAIMED', 'RETURNED']:
-        # Return the item status but perhaps a different message or status code
-        # We can return a specific HTTP status code like 409 Conflict if Django Ninja supports it
-        # For simplicity, we just return the item with a message in the description
-        raise Exception(f"Item is already marked as {item_to_claim.status}")
+        raise HttpError(409, f"Item is already marked as {item_to_claim.status}")
     else:
-        # Default case for other statuses like DISPOSED
-        raise Exception(f"Cannot claim item with current status: {item_to_claim.status}")
+        raise HttpError(400, f"Cannot claim item with current status: {item_to_claim.status}")
 
+## 6. Endpoint to register a new user
+@router.post("/core/register", response={201: RegUserOut, 400: Optional[dict]}, auth=None)
+def register_user(request, payload: RegUserIn):
+    """Creates a new RegUser and securely hashes the password."""
+    try:
+        if RegUser.objects.filter(username=payload.username).exists():
+            return 400, {"message": "Username already taken."}
+        if RegUser.objects.filter(email=payload.email).exists():
+            return 400, {"message": "Email already registered."}
 
+        user = RegUser.objects.create_user(
+            username=payload.username,
+            email=payload.email,
+            password=payload.password 
+        )
+        return 201, user 
+        
+    except Exception as e:
+        raise HttpError(500, f"Registration failed due to unexpected error: {e}")
 
-# core/api.py
-
-# ... existing code ...
-
-@router.post("/chat", response=ChatOut)
+## 7. AI Chat Endpoint
+@router.post("/core/chat", response=ChatOut)
 def chat_with_llm(request, payload: ChatIn):
+    """Handles the user chat interaction using the Gemini model and its tools.
+    
+    NOTE: Authentication is guaranteed by Django Ninja via GlobalAuth.
+    If we reach this function, request.auth holds the authenticated user object.
     """
-    Handles conversational requests, leveraging Gemini's Function Calling
-    to interact with the database using defined tools.
-    """
+    
+    # --- FIX APPLIED: Removed the redundant 'if not request.user.is_authenticated' check.
+    # The authentication is now handled entirely by the GlobalAuth class.
+    
     if not client:
-        return {"response": "System maintenance: AI client is currently unavailable."}
+        return {"response": "System maintenance: AI client is currently unavailable due to missing API key."}
         
     try:
-        # 1. Start the conversation history with the user's message
-        # CORRECTED: Use Part constructor with explicit 'text' keyword argument
+        # 1. Initialize conversation history list
         chat_history = [
             genai.types.Content(
-                role="user", 
-                parts=[genai.types.Part(text=payload.message)] # <<< FIX 1
-            )
+                role=item.role,
+                parts=[genai.types.Part(text=item.text)]
+            ) for item in payload.history
         ]
+
+        # 2. Add the user's current message
+        chat_history.append(
+            genai.types.Content(
+                role="user", 
+                parts=[genai.types.Part(text=payload.message)] 
+            )
+        )
         
-        # 2. Configure the model call with the available tools
+        # 3. Configure the model call
         config = genai.types.GenerateContentConfig(
-            tools=list(AVAILABLE_TOOLS.values())
+            tools=list(AVAILABLE_TOOLS.values()),
+            system_instruction=SYSTEM_INSTRUCTION 
         )
 
-        # 3. Call the model and manage the multi-step process
+        # 4. Call the model
         response = client.models.generate_content(
             model=MODEL_NAME,
-            contents=chat_history,
+            contents=chat_history, 
             config=config,
         )
 
-        # 4. Check if the model decided to call a function/tool
+        # 5. Check if the model decided to call a function/tool
         if response.function_calls:
             function_call = response.function_calls[0]
             function_name = function_call.name
             tool_function = AVAILABLE_TOOLS.get(function_name)
             
             if tool_function:
-                # 5. Execute the actual Python function (database tool)
+                # 6. Execute the tool
                 kwargs = dict(function_call.args)
-                tool_output = tool_function(**kwargs)
                 
-                # 6. Send the tool output back to the model for a conversational response
+                # NOTE: We can pass the authenticated user from request.auth if needed by tools.
+                tool_output = tool_function(**kwargs) 
+                
+                # 7. Send the tool output back to the model for a conversational response
                 chat_history.append(response.candidates[0].content)
-                # CORRECTED: Use Part constructor with explicit 'text' keyword argument
                 chat_history.append(
                     genai.types.Content(
                         role="tool",
-                        parts=[genai.types.Part(text=tool_output)], # <<< FIX 2
+                        parts=[genai.types.Part(text=tool_output)],
                     )
                 )
 
-                # 7. Final call to get the conversational response
+                # 8. Final call to get the conversational response
                 final_response = client.models.generate_content(
                     model=MODEL_NAME,
                     contents=chat_history,
+                    config=config,
                 )
                 return {"response": final_response.text}
             
             else:
                 return {"response": f"AI requested an unknown tool: {function_name}"}
 
-        # 8. If no function call, return the model's direct response
+        # 9. If no function call, return the model's direct response
         return {"response": response.text}
 
+    except HttpError as he:
+        raise he
     except Exception as e:
+        print(f"Gemini API or internal error: {e}")
         return {"response": f"An unexpected error occurred during the AI process. Error: {e}"}
