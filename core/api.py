@@ -1,4 +1,5 @@
 import os
+import time 
 from ninja import Router, Schema, Field, NinjaAPI
 from ninja.security.base import AuthBase 
 from ninja.errors import HttpError, ConfigError
@@ -12,7 +13,7 @@ from core import ai_tools
 from google import genai
 from ninja.orm import ModelSchema
 
-# --- Authentication Class (Unchanged, as it is working correctly) ---
+# --- Authentication Class (Unchanged) ---
 class GlobalAuth(AuthBase):
     openapi_type: str = "apiKey"
     param_name: str = "Authorization"
@@ -20,21 +21,14 @@ class GlobalAuth(AuthBase):
     def authenticate(self, request):
         from rest_framework.authtoken.models import Token
         
-        print("\n--- [AUTH DEBUG] Starting Authentication ---")
-        
-        # 1. Try standard Django META lookup (HTTP_HEADER_NAME)
         auth_header = request.META.get('HTTP_AUTHORIZATION')
         source = "META"
         
         if not auth_header:
-            # 2. Try request.headers lookup (lower-cased or as defined)
             auth_header = request.headers.get(self.param_name) 
             source = "headers"
             
-        print(f"[AUTH DEBUG] Source: {source}. Raw Header: '{auth_header}'")
-
         if not auth_header:
-            print("[AUTH DEBUG] FAILURE: Authorization header is missing.")
             return None
         
         try:
@@ -42,25 +36,17 @@ class GlobalAuth(AuthBase):
             scheme, separator, token = auth_header_normalized.partition(' ')
             
             if not token:
-                print(f"[AUTH DEBUG] FAILURE: Header is not split correctly (e.g., 'Token VALUE'). Full value: '{auth_header_normalized}'")
                 return None
             
-            print(f"[AUTH DEBUG] Parsed Scheme: '{scheme}', Token (first 8 chars): '{token[:8]}...'")
-
             if scheme.lower() != 'token':
-                print(f"[AUTH DEBUG] FAILURE: Scheme is '{scheme}', expected 'Token'.")
                 return None
-        except Exception as e:
-            print(f"[AUTH DEBUG] FAILURE: Error during header parsing: {e}")
+        except Exception:
             return None
 
         try:
             token_obj = Token.objects.get(key=token)
-            print(f"[AUTH DEBUG] SUCCESS: Token matched database entry for user: {token_obj.user.username}")
-            # The User object is returned here, and Django Ninja places it in request.auth
             return token_obj.user
         except Token.DoesNotExist:
-            print("[AUTH DEBUG] FAILURE: Token value not found in database (Token.DoesNotExist).")
             return None
 
     def __call__(self, request):
@@ -92,12 +78,11 @@ SYSTEM_INSTRUCTION = (
     "You are a helpful Lost and Found assistant. "
     "Your goal is to help users report found items, search for lost items, or claim items. "
     "ALWAYS use the provided tools for database interactions, never guess. "
-    "Crucially: If the user provides an item ID (UUID) and expresses the intent to claim it, IMMEDIATELY call the 'claim_found_item_by_id' tool. Do NOT ask the user to confirm the ID again. "
     "CRITICAL RULE 1: When presenting a found item to the user, you **MUST** explicitly state and display the **FULL 32-character Item ID** you received from the tool output. **DO NOT** shorten or truncate the Item ID in the conversation. "
-    "CRITICAL RULE 2: When the user confirms an item, you **MUST** pass the **FULL 32-character Item ID** to the 'claim_found_item_by_id' tool."
+    "CRITICAL RULE 2: When the user confirms an item, you **MUST** pass the **FULL 32-character Item ID** to the 'claim_found_item_by_id' tool. "
+    "CRITICAL NEW RULE 3: If the user provides details for a lost item and you search but they reject the one and only match, **immediately pivot to offering to create a new Lost Claim** with the details they provided, rather than insisting on the rejected match."
 )
 
-# Initialize the Router, applying authentication globally
 router = Router(auth=GlobalAuth())
 
 # -----------------
@@ -148,11 +133,11 @@ class ChatOut(Schema):
     response: str
 
 # -----------------
-# API Endpoints (Only chat_with_llm is changed)
+# API Endpoints (Unchanged paths from last fix)
 # -----------------
 
 ## 1. Endpoint to register a new found item
-@router.post("/core/found_items/", response={201: FoundItemOut,})
+@router.post("/core/found_items", response={201: FoundItemOut,})
 def create_found_item(request, payload: FoundItemIn):
     reporter = request.user if request.user.is_authenticated else None
     
@@ -182,14 +167,14 @@ def create_lost_claim(request, payload: LostClaimIn):
     return lost_claim
 
 ## 3. Endpoint to retrieve all found items
-@router.get("/core/found_items/", response=List[FoundItemOut])
+@router.get("/core/found_items_list", response=List[FoundItemOut])
 def list_found_items(request):
     """Retrieves a list of all reported found items."""
     items = FoundItem.objects.all()
     return items
 
 ## 4. Endpoint to retrieve all lost claims
-@router.get("/core/lost_claims", response=List[LostClaimOut])
+@router.get("/core/lost_claims_list", response=List[LostClaimOut])
 def list_lost_claims(request):
     """Retrieves a list of all reported lost claims."""
     claims = LostClaim.objects.all()
@@ -230,23 +215,38 @@ def register_user(request, payload: RegUserIn):
     except Exception as e:
         raise HttpError(500, f"Registration failed due to unexpected error: {e}")
 
+# --- AI Call Helper Function with Retry Logic (Unchanged) ---
+def call_gemini_with_retry(contents, config, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return client.models.generate_content(
+                model=MODEL_NAME,
+                contents=contents, 
+                config=config,
+            )
+        except genai.errors.APIError as e:
+            print(f"[GEMINI ERROR] Attempt {attempt + 1}: API call failed. {e}")
+            if attempt < max_retries - 1:
+                # Exponential backoff: 2s, 4s, 8s
+                delay = 2 ** (attempt + 1)
+                time.sleep(delay)
+                continue
+            else:
+                raise 
+        except Exception as e:
+             raise e
+
 ## 7. AI Chat Endpoint
 @router.post("/core/chat", response=ChatOut)
 def chat_with_llm(request, payload: ChatIn):
-    """Handles the user chat interaction using the Gemini model and its tools.
-    
-    NOTE: Authentication is guaranteed by Django Ninja via GlobalAuth.
-    If we reach this function, request.auth holds the authenticated user object.
-    """
-    
-    # --- FIX APPLIED: Removed the redundant 'if not request.user.is_authenticated' check.
-    # The authentication is now handled entirely by the GlobalAuth class.
+    """Handles the user chat interaction using the Gemini model and its tools."""
     
     if not client:
+        # Client not initialized (API Key missing)
         return {"response": "System maintenance: AI client is currently unavailable due to missing API key."}
         
     try:
-        # 1. Initialize conversation history list
+        # Convert Pydantic history into Gemini Content objects
         chat_history = [
             genai.types.Content(
                 role=item.role,
@@ -254,7 +254,7 @@ def chat_with_llm(request, payload: ChatIn):
             ) for item in payload.history
         ]
 
-        # 2. Add the user's current message
+        # Append the new user message
         chat_history.append(
             genai.types.Content(
                 role="user", 
@@ -262,33 +262,26 @@ def chat_with_llm(request, payload: ChatIn):
             )
         )
         
-        # 3. Configure the model call
         config = genai.types.GenerateContentConfig(
             tools=list(AVAILABLE_TOOLS.values()),
             system_instruction=SYSTEM_INSTRUCTION 
         )
 
-        # 4. Call the model
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=chat_history, 
-            config=config,
-        )
+        # First AI Call
+        response = call_gemini_with_retry(chat_history, config)
 
-        # 5. Check if the model decided to call a function/tool
         if response.function_calls:
             function_call = response.function_calls[0]
             function_name = function_call.name
             tool_function = AVAILABLE_TOOLS.get(function_name)
             
             if tool_function:
-                # 6. Execute the tool
                 kwargs = dict(function_call.args)
                 
-                # NOTE: We can pass the authenticated user from request.auth if needed by tools.
+                # Execute the tool function
                 tool_output = tool_function(**kwargs) 
                 
-                # 7. Send the tool output back to the model for a conversational response
+                # Append the AI's function call and the tool's output to the history
                 chat_history.append(response.candidates[0].content)
                 chat_history.append(
                     genai.types.Content(
@@ -297,22 +290,25 @@ def chat_with_llm(request, payload: ChatIn):
                     )
                 )
 
-                # 8. Final call to get the conversational response
-                final_response = client.models.generate_content(
-                    model=MODEL_NAME,
-                    contents=chat_history,
-                    config=config,
-                )
+                # Second AI Call to summarize tool output
+                final_response = call_gemini_with_retry(chat_history, config)
+
                 return {"response": final_response.text}
             
             else:
                 return {"response": f"AI requested an unknown tool: {function_name}"}
 
-        # 9. If no function call, return the model's direct response
+        # If no function call, return the response directly
         return {"response": response.text}
 
     except HttpError as he:
         raise he
+    except genai.errors.APIError as e:
+        # Catch GenAI specific errors (e.g., failed after retries)
+        print(f"Final Gemini API Error: {e}")
+        # The user's requested error message
+        return {"response": "Sorry, I ran into an error connecting to the AI service."}
     except Exception as e:
-        print(f"Gemini API or internal error: {e}")
-        return {"response": f"An unexpected error occurred during the AI process. Error: {e}"}
+        # Catch all other internal errors (e.g., Python serialization, tool execution failure)
+        print(f"Internal Chat Error: {e}")
+        return {"response": "Sorry, I ran into an error connecting to the AI service."}
