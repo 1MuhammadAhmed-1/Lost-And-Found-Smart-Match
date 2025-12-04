@@ -105,3 +105,18 @@ CORS_ALLOW_HEADERS = [
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
+
+# Media files (for future image upload)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Templates directory
+TEMPLATES[0]['DIRS'] = [os.path.join(BASE_DIR, 'templates')]
+
+# Login settings
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/login/'
+LOGIN_URL = '/login/'
+
+# Static files in development
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
