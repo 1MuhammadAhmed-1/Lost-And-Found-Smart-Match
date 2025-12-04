@@ -35,6 +35,15 @@ class FoundItem(models.Model):
     date_found = models.DateField()
     contact_email = models.EmailField(max_length=100, null=True, blank=True)
 
+    # In core/models.py — add this line inside FoundItem class
+    claimed_by = models.ForeignKey(
+        RegUser, 
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='claimed_items'
+    )
+
     status_choices = [
         ('PENDING', 'Pending Claim'),
         ('CLAIMED', 'Claimed'),
@@ -42,7 +51,7 @@ class FoundItem(models.Model):
         ('DISPOSED', 'Disposed')
     ]
     status = models.CharField(max_length=20, choices=status_choices, default='PENDING')
-    
+    image = models.ImageField(upload_to='found_items/', null=True, blank=True)  # ← ADD THIS
     reported_by = models.ForeignKey(RegUser, on_delete=models.SET_NULL, null=True, related_name='reported_found_items')
 
     # Field to store the text vector for AI
@@ -67,7 +76,7 @@ class LostClaim(models.Model):
     contact_email = models.EmailField(max_length=100, null=True, blank=True)
     
     owner = models.ForeignKey(RegUser, on_delete=models.CASCADE, related_name='submitted_lost_claims')
-    
+    image = models.ImageField(upload_to='lost_items/', null=True, blank=True)   # ← ADD THIS
     is_matched = models.BooleanField(default=False)
     
     # Field to store the text vector for AI
