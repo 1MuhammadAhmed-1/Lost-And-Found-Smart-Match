@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="min-h-screen bg-base-200 py-12 px-4">
+    <div class="max-w-3xl mx-auto">
+        <h1 class="text-5xl font-bold text-center mb-10 text-primary">{{ title }}</h1>
+
+        <div class="card bg-base-100 shadow-2xl">
+            <div class="card-body">
+                <!-- FORM STARTS HERE -->
+                <form method="post" enctype="multipart/form-data" class="space-y-8">
+                    {% csrf_token %} <!-- THIS LINE WAS MISSING — NOW FIXED! -->
+
+                    <!-- Image Upload with AI hint -->
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text text-lg font-bold text-accent">
+                                Upload Photo (Gemini AI will describe it automatically!)
+                            </span>
+                        </label>
+                        <input type="file" name="image" accept="image/*" class="file-input file-input-bordered file-input-primary w-full" />
+                        <label class="label">
+                            <span class="label-text-alt text-success">AI will analyze your photo in seconds</span>
+                        </label>
+                    </div>
+
+                    <!-- All other form fields -->
+                    {% for field in form %}
+                        {% if field.name != 'image' %}
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-medium">{{ field.label }}</span>
+                            </label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <label class="label">
+                                    <span class="label-text-alt">{{ field.help_text }}</span>
+                                </label>
+                            {% endif %}
+                            {% if field.errors %}
+                                <label class="label">
+                                    <span class="label-text-alt text-error">{{ field.errors }}</span>
+                                </label>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+
+                    <div class="form-control mt-8">
+                        <button type="submit" class="btn btn-primary btn-lg w-full">
+                            Submit & Let AI Describe!
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

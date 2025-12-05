@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login • FoundIt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+    body {
+        position: relative;
+        min-height: 100vh;
+    }
+    body::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(to bottom right, #9333ea, #ec4899, #6366f1);
+        background-image: url('https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1920&q=80');
+        background-size: cover;
+        background-position: center;
+        opacity: 0.88;
+        z-index: -10;
+        filter: blur(2px);
+    }
+</style>
+</head>
+<body class="h-full flex items-center justify-center p-6 relative">
+
+<div class="max-w-md w-full">
+    <div class="text-center mb-10">
+        <h1 class="text-6xl font-black text-white drop-shadow-2xl mb-4">FoundIt</h1>
+        <p class="text-xl text-white/90 font-light">Welcome back, legend</p>
+    </div>
+
+    <div class="backdrop-blur-xl bg-white/20 rounded-3xl shadow-3xl p-10 border border-white/30">
+        <h2 class="text-4xl font-bold text-white text-center mb-8">Login</h2>
+
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            <div>
+                <input type="text" name="username" required
+                       class="w-full px-6 py-5 rounded-2xl bg-white/30 backdrop-blur-lg border border-white/50 text-white placeholder-white/70 text-lg focus:outline-none focus:ring-4 focus:ring-white/50 transition"
+                       placeholder="Username" autofocus>
+            </div>
+            <div>
+                <input type="password" name="password" required
+                       class="w-full px-6 py-5 rounded-2xl bg-white/30 backdrop-blur-lg border border-white/50 text-white placeholder-white/70 text-lg focus:outline-none focus:ring-4 focus:ring-white/50 transition"
+                       placeholder="Password">
+            </div>
+
+            <button type="submit"
+                    class="w-full py-6 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-2xl font-bold shadow-2xl hover:shadow-pink-500/50 transform hover:scale-105 transition-all duration-300">
+                Login Now
+            </button>
+        </form>
+
+        <div class="mt-8 text-center">
+            <p class="text-white/80">
+                Don't have an account?
+                <a href="{% url 'register' %}" class="font-bold text-white underline hover:text-yellow-300 transition">
+                    Register here →
+                </a>
+            </p>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

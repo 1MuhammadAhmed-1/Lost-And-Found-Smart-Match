@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen bg-gradient-to-b from-base-200 to-base-100 py-12">
+    <div class="max-w-5xl mx-auto px-4">
+        <h1 class="text-5xl font-bold text-center mb-12 text-primary">AI Match Analysis</h1>
+
+        <!-- Found Item -->
+        <div class="card bg-base-100 shadow-2xl mb-10">
+            <div class="card-body text-center">
+                <h2 class="text-3xl font-bold text-success">Found Item</h2>
+                {% if found_item.image %}
+                    <img src="{{ found_item.image.url }}" class="mx-auto rounded-2xl max-w-lg shadow-xl mt-6">
+                {% endif %}
+                <h3 class="text-2xl font-bold mt-6">{{ found_item.item_name }}</h3>
+                <p class="text-lg mt-4">{{ found_item.description }}</p>
+                <p class="text-sm text-gray-600 mt-6">
+                    Found by: <strong>{{ found_item.reported_by.username }}</strong> on {{ found_item.date_found }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Already Claimed -->
+        {% if already_claimed %}
+            <div class="alert alert-error shadow-lg text-center text-2xl">
+                This item has already been claimed by someone else.
+            </div>
+            <div class="text-center mt-8">
+                <a href="{% url 'found_list' %}" class="btn btn-ghost btn-lg">← Back to Found Items</a>
+            </div>
+        {% else %}
+
+            <!-- Matches Found -->
+            {% if has_matches %}
+                <div class="alert alert-success shadow-lg text-center text-2xl mb-8">
+                    AI found {{ matches|length }} strong match{{ matches|pluralize }} with your lost item{{ matches|pluralize:"s" }}!
+                </div>
+
+                {% for match in matches %}
+                    <div class="alert alert-info shadow-lg mb-6 p-8">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="text-4xl font-black text-success">{{ match.match_score }}% Match</div>
+                                <p class="text-xl mt-2">Your lost item: <strong>"{{ match.lost_item.item_name }}"</strong></p>
+                                <p class="text-sm opacity-80">
+                                    Vision: {{ match.vision_score }}% • Text: {{ match.text_score }}%
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-warning shadow-lg text-center text-xl py-12">
+                    No strong AI matches found with your lost items.<br>
+                    <span class="text-lg opacity-75">But you can still claim it if you're sure it's yours!</span>
+                </div>
+            {% endif %}
+
+            <!-- FINAL CLAIM BUTTON -->
+            <div class="text-center mt-12">
+                <form method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success btn-lg text-2xl px-16 py-8 shadow-2xl hover:shadow-success hover:scale-105 transition-all">
+                        YES, THIS IS MY ITEM — CLAIM NOW!
+                    </button>
+                </form>
+                <div class="mt-6">
+                    <a href="{% url 'found_list' %}" class="btn btn-ghost">← Cancel and go back</a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
