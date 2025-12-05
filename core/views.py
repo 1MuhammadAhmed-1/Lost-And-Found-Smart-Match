@@ -32,7 +32,7 @@ def describe_with_gemini(image_field):
         ext = Path(image_field.name).suffix.lower()
         mime_type = mimetypes.guess_type("file" + ext)[0] or "image/jpeg"
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content([
             "You are an expert lost & found assistant. Describe this item in extreme detail: color, brand, material, size, condition, logos, damage, unique features. Write in full sentences.",
             {"mime_type": mime_type, "data": image_data}
@@ -78,10 +78,10 @@ def ai_image_similarity(img1, img2):
         img1.seek(0)
         img2.seek(0)
 
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content([
             "Compare these two images. Are they the same item? "
-            "Answer with ONLY a number 0–100. No words, no explanation.",
+            "Answer with ONLY a number 0-100. No words, no explanation.",
             img1, img2
         ])
 
