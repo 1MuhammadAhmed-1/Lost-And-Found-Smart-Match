@@ -4,6 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib import messages
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.http import JsonResponse
+import json
 
 from .forms import RegisterForm, FoundItemForm, LostClaimForm
 from .models import FoundItem, LostClaim
@@ -244,3 +249,43 @@ def register(request):
     else:
         form = RegisterForm()
     return render(request, 'registration/register.html', {'form': form})
+
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ChatbotView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            question = data.get('question', '').strip()
+            q = question.lower()
+
+            # PRECISE, FLAWLESS RESPONSES
+            if any(phrase in q for phrase in ['report', 'submit', 'add item', 'lost item', 'found item', 'how to report']):
+                answer = """**How to Report an Item**\n1. Click "Lost Item" (red) or "Found Item" (green) in the top navbar\n2. Upload a clear photo → Gemini AI writes description instantly\n3. Add location & date\n4. Submit — your item is live!"""
+
+            elif any(phrase in q for phrase in ['claim', 'get back', 'my item', 'retrieve', 'claim this']):
+                answer = """**How to Claim an Item**\n1. Go to "Browse Found Items"\n2. Click "Claim This Item" on something that looks like yours\n3. AI compares it with all your lost reports\n4. See match % → Click "YES, THIS IS MY ITEM" to claim it permanently!"""
+
+            elif any(phrase in q for phrase in ['search', 'find', 'look for', 'how to search', 'how does search work']):
+                answer = """**AI Smart Search**\nJust type naturally in the big search bar:\n• "I lost my red backpack"\n• "black iPhone cracked screen"\n• "car keys with blue tag"\nUses real Google AI — understands meaning, not just keywords!"""
+
+            elif any(phrase in q for phrase in ['ai matching', 'how does ai work', 'gemini', 'vision', 'how accurate']):
+                answer = """**AI Matching Explained**\n• Photo → Gemini Vision describes item\n• Search → Gemini Embeddings understand meaning\n• Claim → 60% Image comparison + 40% Text = ultra-accurate match score"""
+
+            elif any(phrase in q for phrase in ['everything', 'all features', 'what can i do', 'features', 'capabilities']):
+                answer = """**Everything You Can Do**\n• Report lost/found items with AI photo analysis\n• Natural language AI search\n• Browse all items with photos\n• AI-powered claiming with match %\n• Permanent claim ownership\n• Live AI chatbot help (me!)\nPowered by Google Gemini"""
+
+            elif any(phrase in q for phrase in ['own item', 'claim my own', 'found myself']):
+                answer = "No — you cannot claim an item you reported yourself. This prevents abuse."
+
+            elif any(phrase in q for phrase in ['hello', 'hi', 'hey', 'help', 'what', 'how']):
+                answer = """Hey! I'm your FoundIt AI assistant.\nAsk me anything:\n• How to report?\n• How to claim?\n• How does search work?\n• What features exist?\nJust type naturally!"""
+
+            else:
+                answer = "I can help with:\n• Reporting items\n• Claiming items\n• Using AI search\n• Understanding features\n\nTry asking: 'How do I claim an item?'"
+
+            return JsonResponse({'answer': answer})
+
+        except Exception as e:
+            return JsonResponse({'answer': "Sorry, something went wrong. Please try again!"})

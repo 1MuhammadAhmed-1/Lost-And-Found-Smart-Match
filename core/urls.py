@@ -3,6 +3,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views   # ← ADD THIS LINE
 from django.contrib.auth.views import LogoutView
 from . import views
+from .views import ChatbotView
 
 urlpatterns = [
     path('', views.home, name='home'),
@@ -15,4 +16,5 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(next_page='/'), name='logout'),
     path('claim/<uuid:item_id>/', views.claim_item, name='claim_item'),
     path('api/smart-search/', views.smart_search_api, name='smart_search_api'),
+    path('api/chatbot/', ChatbotView.as_view(), name='chatbot'),
 ]
