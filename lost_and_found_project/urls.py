@@ -4,6 +4,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
+from rest_framework.authtoken.views import obtain_auth_token
 
 # ←←← THIS IS YOUR NINJA API INSTANCE (you already had this in your old code)
 from ninja import NinjaAPI
@@ -18,8 +19,10 @@ urlpatterns = [
     # YOUR EXISTING NINJA API — FIXED LINE ↓
     path("api/ninja/", api.urls),                    # ← FIXED!
 
-    # Token auth (you already use this)
-    path('api/token-auth/', include('rest_framework.urls')),
+    # Token auth endpoint
+    path('api/token-auth/', obtain_auth_token),
+    # Browsable API login/logout
+    path('api/auth/', include('rest_framework.urls')),
 
     # OUR NEW BEAUTIFUL TEMPLATE VIEWS
     path('', include('core.urls')),   # ← This gives you the stunning frontend
