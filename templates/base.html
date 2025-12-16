@@ -53,140 +53,191 @@
         {% block content %}{% endblock %}
     </div>
 
-    <!-- AI CHATBOT — FINAL, FLAWLESS -->
-    <!-- AI CHATBOT — PERFECT SPACING, PERFECT EVERYTHING -->
+    <!-- AI CHATBOT -->
     <div id="ai-chatbot" class="fixed bottom-6 right-6 z-50">
-    <button id="chatbot-toggle" class="btn btn-circle btn-primary btn-lg shadow-2xl hover:scale-125 transition-all duration-300">
-        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-        </svg>
-    </button>
+        <button id="chatbot-toggle" class="btn btn-circle btn-primary btn-lg shadow-2xl hover:scale-125 transition-all duration-300">
+            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+        </button>
 
-    <div id="chat-window" class="hidden absolute bottom-20 right-0 w-96 h-[600px] bg-white rounded-3xl shadow-4xl overflow-hidden border border-purple-200 flex flex-col"
-        style="transform: scale(0.8); opacity: 0; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);">
-        
-        <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h3 class="text-2xl font-black">FoundIt Assistant</h3>
-                    <p class="text-sm opacity-90">Ask me anything!</p>
-                </div>
-                <button id="chat-close" class="btn btn-circle btn-ghost text-white hover:bg-white/20">✕</button>
-            </div>
-        </div>
-
-        <div id="chat-messages" class="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-purple-50 to-pink-50">
-            <!-- WELCOME MESSAGE — FIXED SPACING -->
-            <div class="chat chat-start mb-4">
-                <div class="chat-bubble bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-xl rounded-2xl p-4 max-w-[85%]">
-                    <p class="text-lg font-bold mb-2">Hey there! 👋</p>
-                    <p class="text-sm leading-relaxed mb-3">
-                        I'm your personal AI assistant for FoundIt.
-                    </p>
-                    <p class="text-sm font-semibold mb-2">Try asking:</p>
-                    <ul class="space-y-1 text-sm leading-relaxed">
-                        <li>• How do I report a lost item?</li>
-                        <li>• How does the AI matching work?</li>
-                        <li>• How do I claim an item?</li>
-                    </ul>
+        <div id="chat-window" class="hidden absolute bottom-20 right-0 w-[420px] md:w-[480px] h-[680px] bg-white rounded-3xl shadow-4xl overflow-hidden border border-purple-200 flex flex-col"
+            style="transform: scale(0.8); opacity: 0; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);">
+            
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="text-2xl font-black">FoundIt Assistant</h3>
+                        <p class="text-sm opacity-90">Ask me anything!</p>
+                    </div>
+                    <button id="chat-close" class="btn btn-circle btn-ghost text-white hover:bg-white/20">✕</button>
                 </div>
             </div>
-        </div>
 
-        <div class="p-6 bg-white border-t border-purple-100">
-            <div class="flex gap-3">
-                <input type="text" id="chat-input" placeholder="Ask me anything..." 
-                    class="input input-bordered input-lg flex-1 rounded-full bg-gray-100 text-gray-800 placeholder-gray-500 focus:bg-white focus:ring-4 focus:ring-purple-400 transition-all"/>
-                <button id="chat-send" class="btn btn-primary btn-circle btn-lg hover:scale-110 transition-all shadow-xl">
-                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                    </svg>
-                </button>
+            <!-- Messages -->
+            <div id="chat-messages" class="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-purple-50 to-pink-50 space-y-4">
+                <div class="chat chat-start">
+                    <div class="chat-bubble bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-2xl rounded-2xl p-5 max-w-[85%]">
+                        <p class="text-xl font-bold mb-3">Hey there! 👋</p>
+                        <p class="text-base leading-relaxed mb-4">
+                            I'm your personal AI assistant for FoundIt.
+                        </p>
+                        <p class="text-base font-semibold mb-2">Try asking:</p>
+                        <ul class="space-y-2 text-base leading-relaxed list-disc list-inside ml-2">
+                            <li>How do I report a lost item?</li>
+                            <li>How does the AI matching work?</li>
+                            <li>How do I claim an item?</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input + Image Upload Button -->
+            <div class="p-6 bg-white border-t border-purple-100">
+                <div class="flex gap-3">
+                    <!-- Image Upload Button -->
+                    <button id="chat-upload-btn" class="btn btn-ghost btn-circle btn-lg hover:bg-purple-100 transition">
+                        <svg class="w-7 h-7 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                    </button>
+
+                    <!-- Text Input -->
+                    <input type="text" id="chat-input" placeholder="Ask me anything..." 
+                        class="input input-bordered input-lg flex-1 rounded-full bg-gray-100 text-gray-800 placeholder-gray-500 focus:bg-white focus:ring-4 focus:ring-purple-400 focus:border-purple-500 transition-all"/>
+
+                    <!-- Send Button -->
+                    <button id="chat-send" class="btn btn-primary btn-circle btn-lg hover:scale-110 transition-all shadow-xl">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
                 }
             }
+            return cookieValue;
         }
-        return cookieValue;
-    }
-    const csrftoken = getCookie('csrftoken');
+        const csrftoken = getCookie('csrftoken');
 
-    const chatbotToggle = document.getElementById('chatbot-toggle');
-    const chatWindow = document.getElementById('chat-window');
-    const chatClose = document.getElementById('chat-close');
+        const chatbotToggle = document.getElementById('chatbot-toggle');
+        const chatWindow = document.getElementById('chat-window');
+        const chatClose = document.getElementById('chat-close');
+        const chatInput = document.getElementById('chat-input');
+        const chatSend = document.getElementById('chat-send');
+        const chatUploadBtn = document.getElementById('chat-upload-btn'); // Camera button
 
-    chatbotToggle.onclick = () => {
-        chatWindow.classList.remove('hidden');
-        setTimeout(() => {
-            chatWindow.style.transform = 'scale(1)';
-            chatWindow.style.opacity = '1';
-        }, 10);
-    };
+        // Animation
+        chatbotToggle.onclick = () => {
+            chatWindow.classList.remove('hidden');
+            setTimeout(() => {
+                chatWindow.style.transform = 'scale(1)';
+                chatWindow.style.opacity = '1';
+            }, 10);
+        };
 
-    chatClose.onclick = () => {
-        chatWindow.style.transform = 'scale(0.8)';
-        chatWindow.style.opacity = '0';
-        setTimeout(() => chatWindow.classList.add('hidden'), 350);
-    };
+        chatClose.onclick = () => {
+            chatWindow.style.transform = 'scale(0.8)';
+            chatWindow.style.opacity = '0';
+            setTimeout(() => chatWindow.classList.add('hidden'), 350);
+        };
 
-    document.getElementById('chat-send').onclick = sendMessage;
-    document.getElementById('chat-input').addEventListener('keypress', e => {
-        if (e.key === 'Enter') sendMessage();
-    });
+        // Send text
+        chatSend.onclick = sendMessage;
+        chatInput.addEventListener('keypress', e => {
+            if (e.key === 'Enter') sendMessage();
+        });
 
-    async function sendMessage() {
-        const input = document.getElementById('chat-input');
-        const question = input.value.trim();
-        if (!question) return;
+        async function sendMessage() {
+            const question = chatInput.value.trim();
+            if (!question) return;
 
-        addMessage(question, 'chat-end', 'bg-gradient-to-r from-gray-800 to-black text-white');
-        input.value = '';
+            addMessage(question, 'chat-end', 'bg-gradient-to-r from-gray-800 to-black text-white');
+            chatInput.value = '';
 
-        const typing = addMessage('Typing...', 'chat-start', 'bg-purple-200 text-purple-800 italic font-medium');
+            const typing = addMessage('Typing...', 'chat-start', 'bg-purple-200 text-purple-800 italic');
 
-        try {
-            const res = await fetch('/api/chatbot/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                body: JSON.stringify({ question })
-            });
-            const data = await res.json();
-            typing.remove();
-            addMessage(data.answer, 'chat-start', 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-xl');
-        } catch (e) {
-            typing.remove();
-            addMessage("Sorry, I'm having trouble. Try again!", 'chat-start', 'bg-red-500 text-white');
+            try {
+                const res = await fetch('/api/chatbot/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                    body: JSON.stringify({ question })
+                });
+                const data = await res.json();
+                typing.remove();
+                addMessage(data.answer, 'chat-start', 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-2xl');
+            } catch (e) {
+                typing.remove();
+                addMessage("Connection error. Try again!", 'chat-start', 'bg-red-500 text-white');
+            }
         }
-    }
 
-    function addMessage(text, direction, bgClass) {
-        const container = document.getElementById('chat-messages');
-        const div = document.createElement('div');
-        div.className = `chat ${direction} mb-4`;
-        div.innerHTML = `
-            <div class="chat-bubble ${bgClass} shadow-xl p-4 rounded-2xl text-sm leading-relaxed max-w-[85%]">
-                ${text.replace(/\n/g, '<br>')}
-            </div>
-        `;
-        container.appendChild(div);
-        container.scrollTop = container.scrollHeight;
-        return div;
-    }
-</script>
+        // IMAGE UPLOAD — FIXED
+        chatUploadBtn.onclick = () => {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.onchange = async () => {
+                const file = fileInput.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = async () => {
+                    const base64 = reader.result;
+
+                    addMessage('Uploading photo...', 'chat-end', 'bg-gradient-to-r from-gray-800 to-black text-white');
+                    const typing = addMessage('Analyzing with AI...', 'chat-start', 'bg-purple-200 text-purple-800 italic');
+
+                    try {
+                        const res = await fetch('/api/chatbot/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                            body: JSON.stringify({ image: base64 })
+                        });
+                        const data = await res.json();
+                        typing.remove();
+                        addMessage(data.answer, 'chat-start', 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-2xl');
+                    } catch (e) {
+                        typing.remove();
+                        addMessage("Upload failed. Try again!", 'chat-start', 'bg-red-500 text-white');
+                    }
+                };
+            };
+            fileInput.click();
+        };
+
+        function addMessage(text, direction, bgClass) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `chat ${direction} mb-8`;
+            div.innerHTML = `
+                <div class="chat-bubble ${bgClass} shadow-2xl p-8 rounded-3xl text-lg leading-relaxed max-w-[85%] break-words">
+                    ${text.replace(/\n/g, '<br>')}
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div;
+        }
+    </script>
 
 </body>
 </html>
