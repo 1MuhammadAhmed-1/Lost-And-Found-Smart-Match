@@ -1,4 +1,4 @@
-# core/views.py
+# core/views.py — FINAL VERSION WITH ALL FIXES
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
@@ -7,8 +7,11 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
-from django.http import JsonResponse
+from django.core.files.base import ContentFile
 import json
+import re
+import base64
+from datetime import date  # ← Added for today's date
 
 from .forms import RegisterForm, FoundItemForm, LostClaimForm
 from .models import FoundItem, LostClaim
@@ -19,13 +22,13 @@ from pathlib import Path
 import mimetypes
 import numpy as np
 from numpy.linalg import norm
-import re
 
-genai.configure(api_key="AIzaSyAaZduo5QrN1CIK8n-ZhYdkIhyHrRmuJGA")  # Change to env var later
+genai.configure(api_key="AIzaSyAaZduo5QrN1CIK8n-ZhYdkIhyHrRmuJGA")
 
 # --------------------- AI HELPER FUNCTIONS ---------------------
 
 def describe_with_gemini(image_field):
+    """Generate concise description from uploaded image using Gemini Vision"""
     try:
         image_field.seek(0)
         image_data = image_field.read()
@@ -34,7 +37,7 @@ def describe_with_gemini(image_field):
 
         model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content([
-            "You are an expert lost & found assistant. Describe this item in extreme detail: color, brand, material, size, condition, logos, damage, unique features. Write in full sentences.",
+            "Describe this item CONCISELY in 3-5 sentences. Focus on UNIQUE features: color, brand, size, condition, logos, damage. Avoid general phrases.",
             {"mime_type": mime_type, "data": image_data}
         ])
         return response.text.strip()
@@ -70,29 +73,19 @@ def ai_text_similarity(t1, t2):
 
 
 def ai_image_similarity(img1, img2):
-    """Safe and working image comparison with Gemini"""
     if not img1 or not img2:
         return 0
-
     try:
-        img1.seek(0)
-        img2.seek(0)
-
+        img1.seek(0); img2.seek(0)
         model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content([
-            "Compare these two images. Are they the same item? "
-            "Answer with ONLY a number 0-100. No words, no explanation.",
+            "Compare these two images. Are they the same item? Answer ONLY with a number 0–100.",
             img1, img2
         ])
-
-        import re
         match = re.search(r'\d+', response.text)
         return float(match.group()) if match else 50
-
-    except Exception as e:
-        print("Image comparison error:", e)
+    except:
         return 50
-
     finally:
         for img in (img1, img2):
             try:
@@ -141,58 +134,36 @@ def report_lost(request):
     return render(request, 'report_form.html', {'form': form, 'title': 'Report Lost Item'})
 
 
-# REAL AI SMART SEARCH — USING GEMINI EMBEDDINGS
 @login_required
 def smart_search_api(request):
     query = request.GET.get('q', '').strip()
     if not query:
         return JsonResponse([], safe=False)
 
-    query_lower = query.lower()
     query_emb = get_embedding(query)
-
     results = []
 
-    # Combine both found and lost items
     for item in list(FoundItem.objects.all()) + list(LostClaim.objects.all()):
-        text = f"{item.item_name} {item.description}".lower()
+        text = f"{item.item_name} {item.description}".strip()
         if not text:
             continue
-
-        # 1. Embedding similarity (real AI understanding)
-        emb_sim = cosine_similarity(query_emb, get_embedding(text)) * 100
-
-        # 2. Keyword fallback (in case embedding is picky)
-        keyword_score = 0
-        query_words = set(query_lower.split())
-        item_words = set(text.split())
-        if query_words & item_words:
-            keyword_score = len(query_words & item_words) / len(query_words) * 70
-
-        # 3. Exact name match bonus
-        name_bonus = 40 if query_lower in item.item_name.lower() or item.item_name.lower() in query_lower else 0
-
-        # Final score
-        final_score = max(emb_sim, keyword_score) + name_bonus
-
-        if final_score >= 40:  # Lowered threshold + smarter logic
+        similarity = cosine_similarity(query_emb, get_embedding(text)) * 100
+        if similarity >= 40:
             results.append({
                 'item_name': item.item_name,
-                'match': round(min(final_score, 98), 1),
+                'match': round(similarity, 1),
                 'type': 'found' if isinstance(item, FoundItem) else 'lost',
                 'image': item.image.url if item.image else None,
-                'description': item.description[:130] + "..." if len(item.description) > 130 else item.description
+                'description': item.description[:130] + ("..." if len(item.description) > 130 else item.description)
             })
 
-    # Sort by best match
     results.sort(key=lambda x: x['match'], reverse=True)
-    return JsonResponse(results[:10], safe=False)
+    return JsonResponse(results[:8], safe=False)
 
 
 @login_required
 def claim_item(request, item_id):
     found_item = get_object_or_404(FoundItem, item_id=item_id)
-
     if found_item.reported_by == request.user:
         messages.error(request, "You cannot claim your own found item!")
         return redirect('found_list')
@@ -202,7 +173,6 @@ def claim_item(request, item_id):
 
     user_lost_items = LostClaim.objects.filter(owner=request.user)
     matches = []
-
     for lost in user_lost_items:
         vision = ai_image_similarity(lost.image, found_item.image) if lost.image and found_item.image else 0
         text = ai_text_similarity(f"{lost.item_name} {lost.description}", f"{found_item.item_name} {found_item.description}")
@@ -251,41 +221,294 @@ def register(request):
     return render(request, 'registration/register.html', {'form': form})
 
 
-
+# FINAL INTERACTIVE CHATBOT — WITH IMAGE UPLOAD + AUTO DATE + REPORTING
 @method_decorator(csrf_exempt, name='dispatch')
 class ChatbotView(View):
     def post(self, request):
         try:
             data = json.loads(request.body)
             question = data.get('question', '').strip()
-            q = question.lower()
+            image_base64 = data.get('image', None)
 
-            # PRECISE, FLAWLESS RESPONSES
-            if any(phrase in q for phrase in ['report', 'submit', 'add item', 'lost item', 'found item', 'how to report']):
-                answer = """**How to Report an Item**\n1. Click "Lost Item" (red) or "Found Item" (green) in the top navbar\n2. Upload a clear photo → Gemini AI writes description instantly\n3. Add location & date\n4. Submit — your item is live!"""
+            if not request.user.is_authenticated:
+                return JsonResponse({'answer': "Please log in to report items! 🔒"})
 
-            elif any(phrase in q for phrase in ['claim', 'get back', 'my item', 'retrieve', 'claim this']):
-                answer = """**How to Claim an Item**\n1. Go to "Browse Found Items"\n2. Click "Claim This Item" on something that looks like yours\n3. AI compares it with all your lost reports\n4. See match % → Click "YES, THIS IS MY ITEM" to claim it permanently!"""
+            if not question and not image_base64:
+                return JsonResponse({'answer': "Say something or upload a photo! 😊"})
+
+            q = question.lower() if question else ""
+
+            session = request.session
+            state = session.get('chatbot_state', {})
+
+            # Cancel
+            if any(word in q for word in ['cancel', 'stop', 'nevermind']):
+                if 'chatbot_state' in session:
+                    del session['chatbot_state']
+                    session.modified = True
+                return JsonResponse({'answer': "Conversation canceled! How else can I help?"})
+
+            # IMAGE UPLOAD
+            if image_base64:
+                if 'action' not in state or state['action'] != 'report':
+                    return JsonResponse({'answer': "Start by saying 'report lost/found item' first!"})
+
+                # Extract base64 and extension
+                if ';base64,' in image_base64:
+                    header, base64_str = image_base64.split(';base64,')
+                    ext = header.split('/')[-1]
+                else:
+                    base64_str = image_base64
+                    ext = 'jpg'
+
+                # Decode for Gemini
+                image_bytes = base64.b64decode(base64_str)
+                temp_file = ContentFile(image_bytes, name=f'temp.{ext}')
+                ai_desc = describe_with_gemini(temp_file)
+
+                # Store serializable data
+                state['image_base64'] = base64_str
+                state['image_ext'] = ext
+                state['description'] = ai_desc
+                state['has_image'] = True
+                session['chatbot_state'] = state
+                session.modified = True
+
+                return JsonResponse({'answer': f"Photo uploaded! 📸\n\n**AI Description:**\n{ai_desc}\n\nNow your contact email?"})
+
+            # START REPORTING
+            if 'report' in q and 'action' not in state:
+                state['action'] = 'report'
+                state['type'] = 'lost' if 'lost' in q else 'found'
+                state['step'] = 'name'
+                state['has_image'] = False
+                session['chatbot_state'] = state
+                session.modified = True
+                return JsonResponse({'answer': f"Let's report your **{state['type']}** item!\n\nWhat is the item name? (e.g., bag)"})
+
+            # REPORT FLOW
+            if state.get('action') == 'report':
+                if state['step'] == 'name':
+                    state['item_name'] = question.title()
+                    state['step'] = 'location'
+                    session['chatbot_state'] = state
+                    session.modified = True
+                    return JsonResponse({'answer': f"Got it: **{state['item_name']}**\n\nWhere was it {state['type']}?"})
+
+                elif state['step'] == 'location':
+                    state['location'] = question
+                    state['step'] = 'photo'
+                    session['chatbot_state'] = state
+                    session.modified = True
+                    return JsonResponse({'answer': f"Location: **{question}**\n\nPlease upload a photo 📸 (click camera icon)\n\nOr type 'skip' to continue without photo."})
+
+                elif state['step'] == 'photo':
+                    if q == 'skip':
+                        state['step'] = 'contact'
+                        session['chatbot_state'] = state
+                        session.modified = True
+                        return JsonResponse({'answer': "Photo skipped.\n\nYour contact email?"})
+                    elif 'has_image' not in state:
+                        return JsonResponse({'answer': "Waiting for photo... 📸\n\nOr type 'skip' to continue."})
+
+                    state['step'] = 'contact'
+                    session['chatbot_state'] = state
+                    session.modified = True
+                    return JsonResponse({'answer': "Photo analyzed! ✅\n\nFinal step: your contact email?"})
+
+                elif state['step'] == 'contact':
+                    state['contact'] = question
+                    today = date.today()
+
+                    # SAVE REPORT — FIXED: Save first, then add image
+                    try:
+                        if state['type'] == 'lost':
+                            obj = LostClaim(
+                                owner=request.user,
+                                item_name=state['item_name'],
+                                description=state.get('description', 'Reported via chatbot'),
+                                approx_location_lost=state['location'],
+                                date_lost=today,
+                                contact_email=state['contact']
+                            )
+                        else:
+                            obj = FoundItem(
+                                reported_by=request.user,
+                                item_name=state['item_name'],
+                                description=state.get('description', 'Reported via chatbot'),
+                                location_found=state['location'],
+                                date_found=today,
+                                contact_email=state['contact']
+                            )
+
+                        obj.save()  # ← Save first to get ID
+
+                        if state.get('has_image'):
+                            base64_str = state['image_base64']
+                            ext = state['image_ext']
+                            image_bytes = base64.b64decode(base64_str)
+                            image_file = ContentFile(image_bytes, name=f'report_{obj.id}.{ext}')
+                            obj.image = image_file
+                            obj.save()  # ← Save again with image
+
+                        del session['chatbot_state']
+                        session.modified = True
+
+                        return JsonResponse({
+                            'answer': f"🎉 **Success!**\n\nYour **{state['type']} {state['item_name']}** reported on {today}.\n\n"
+                                      f"{'AI description + photo added!' if state.get('has_image') else 'No photo — consider adding one later.'}\n\n"
+                                      "Thank you! ❤️"
+                        })
+                    except Exception as e:
+                        return JsonResponse({'answer': f"Save failed: {str(e)}\nTry the regular form."})
+
+                    # SAVE REPORT — FIXED: save first, then add image using saved ID
+                    try:
+                        if state['type'] == 'lost':
+                            obj = LostClaim(
+                                owner=request.user,
+                                item_name=state['item_name'],
+                                description=state.get('description', 'Reported via chatbot'),
+                                approx_location_lost=state['location'],
+                                date_lost=today,
+                                contact_email=state['contact']
+                            )
+                        else:
+                            obj = FoundItem(
+                                reported_by=request.user,
+                                item_name=state['item_name'],
+                                description=state.get('description', 'Reported via chatbot'),
+                                location_found=state['location'],
+                                date_found=today,
+                                contact_email=state['contact']
+                            )
+
+                        obj.save()  # ← Save first to get ID
+
+                        if state.get('has_image'):
+                            base64_str = state['image_base64']
+                            ext = state['image_ext']
+                            image_bytes = base64.b64decode(base64_str)
+                            image_file = ContentFile(image_bytes, name=f'report_{obj.id}.{ext}')
+                            obj.image = image_file
+                            obj.save()  # Save again with image
+
+                        del session['chatbot_state']
+                        session.modified = True
+
+                        return JsonResponse({
+                            'answer': f"🎉 **Success!**\n\nYour **{state['type']} {state['item_name']}** reported on {today}.\n\n"
+                                      f"{'AI description + photo added!' if state.get('has_image') else 'No photo — consider adding one later.'}\n\n"
+                                      "Thank you! ❤️"
+                        })
+                    except Exception as e:
+                        return JsonResponse({'answer': f"Save failed: {str(e)}\nTry the regular form."})
+
+            
+            # PRECISE, BEAUTIFUL RESPONSES
+            answer = None  # Initialize answer variable
+            
+            if any(phrase in q for phrase in ['report', 'submit', 'add item', 'lost item', 'found item', 'how to report', 'report lost', 'report found']):
+                answer = (
+                    "**How to Report an Item**\n\n"
+                    "1. Click **Lost Item** (red button) or **Found Item** (green button) in the top navbar\n"
+                    "2. Upload a clear photo → **Gemini AI automatically writes a detailed description**\n"
+                    "3. Fill in location, date, and contact info\n"
+                    "4. Click Submit — your item is instantly live for others to see!\n\n"
+                    "Your report helps someone reunite with their belongings. Thank you! ❤️"
+                )
+
+            elif any(phrase in q for phrase in ['claim', 'get back', 'my item', 'retrieve', 'claim this', 'how to claim']):
+                answer = (
+                    "**How to Claim an Item**\n\n"
+                    "1. Go to **Browse Found Items**\n"
+                    "2. Find an item that looks like yours → click **Claim This Item**\n"
+                    "3. AI automatically compares it with **all your lost reports**\n"
+                    "4. See the match percentage (Vision + Text AI)\n"
+                    "5. If it's yours → click **YES, THIS IS MY ITEM — CLAIM NOW!**\n\n"
+                    "The item is now officially yours. The finder will be notified! 🎉"
+                )
 
             elif any(phrase in q for phrase in ['search', 'find', 'look for', 'how to search', 'how does search work']):
-                answer = """**AI Smart Search**\nJust type naturally in the big search bar:\n• "I lost my red backpack"\n• "black iPhone cracked screen"\n• "car keys with blue tag"\nUses real Google AI — understands meaning, not just keywords!"""
+                answer = (
+                    "**AI Smart Search**\n\n"
+                    "Just type naturally in the big search bar on the homepage!\n\n"
+                    "Examples:\n"
+                    "• \"I lost my red backpack\"\n"
+                    "• \"black iPhone with cracked screen\"\n"
+                    "• \"car keys with blue tag\"\n"
+                    "• \"nike shoes size 10\"\n\n"
+                    "Uses **Google Gemini Embeddings** — understands meaning, not just keywords.\n"
+                    "Results appear instantly with photos and match %!"
+                )
 
-            elif any(phrase in q for phrase in ['ai matching', 'how does ai work', 'gemini', 'vision', 'how accurate']):
-                answer = """**AI Matching Explained**\n• Photo → Gemini Vision describes item\n• Search → Gemini Embeddings understand meaning\n• Claim → 60% Image comparison + 40% Text = ultra-accurate match score"""
+            elif any(phrase in q for phrase in ['ai matching', 'how does ai work', 'gemini', 'vision', 'how accurate', 'matching']):
+                answer = (
+                    "**AI Magic Explained**\n\n"
+                    "• **Photo Upload** → Gemini Vision analyzes the image → writes detailed description\n"
+                    "• **Smart Search** → Gemini Embeddings understand natural language meaning\n"
+                    "• **Claim Matching** → \n"
+                    "   – 60% Image comparison (Gemini Vision)\n"
+                    "   – 40% Text similarity (Gemini Embeddings)\n"
+                    "   = Ultra-accurate match score\n\n"
+                    "Smarter than any manual system! 🤖✨"
+                )
 
             elif any(phrase in q for phrase in ['everything', 'all features', 'what can i do', 'features', 'capabilities']):
-                answer = """**Everything You Can Do**\n• Report lost/found items with AI photo analysis\n• Natural language AI search\n• Browse all items with photos\n• AI-powered claiming with match %\n• Permanent claim ownership\n• Live AI chatbot help (me!)\nPowered by Google Gemini"""
+                answer = (
+                    "**Everything You Can Do in FoundIt**\n\n"
+                    "• Report lost or found items with **AI-powered photo description**\n"
+                    "• Search using **natural language** (e.g., \"I lost my wallet yesterday\")\n"
+                    "• Browse all items with beautiful photos\n"
+                    "• Click **Claim This Item** → AI shows match % with your lost reports\n"
+                    "• Permanently claim items with one click\n"
+                    "• Get help anytime from **me — your AI assistant** 🤖\n\n"
+                    "All powered by **Google Gemini Vision + Embeddings**\n"
+                    "The smartest lost & found system ever built! 🚀"
+                )
 
-            elif any(phrase in q for phrase in ['own item', 'claim my own', 'found myself']):
-                answer = "No — you cannot claim an item you reported yourself. This prevents abuse."
+            elif any(phrase in q for phrase in ['own item', 'claim my own', 'found myself', 'claim own']):
+                answer = (
+                    "No — you cannot claim an item you reported yourself.\n\n"
+                    "This prevents abuse and keeps the system fair for everyone. "
+                    "The goal is to help others recover their belongings! 🙏"
+                )
 
-            elif any(phrase in q for phrase in ['hello', 'hi', 'hey', 'help', 'what', 'how']):
-                answer = """Hey! I'm your FoundIt AI assistant.\nAsk me anything:\n• How to report?\n• How to claim?\n• How does search work?\n• What features exist?\nJust type naturally!"""
+            elif any(phrase in q for phrase in ['hello', 'hi', 'hey', 'help', 'what', 'how', 'sup', 'yo']):
+                answer = (
+                    "**Hey there! 👋**\n\n"
+                    "I'm your personal AI assistant for FoundIt.\n\n"
+                    "Ask me anything:\n"
+                    "• How do I report a lost item?\n"
+                    "• How does the AI search work?\n"
+                    "• How do I claim an item?\n"
+                    "• What features are available?\n\n"
+                    "Just type naturally — I'm here to help! 😊"
+                )
 
             else:
-                answer = "I can help with:\n• Reporting items\n• Claiming items\n• Using AI search\n• Understanding features\n\nTry asking: 'How do I claim an item?'"
+                answer = (
+                    "I'm your FoundIt expert! I can help with:\n\n"
+                    "• Reporting lost/found items\n"
+                    "• Using the AI search\n"
+                    "• Claiming items\n"
+                    "• Understanding how the AI works\n\n"
+                    "Try asking:\n"
+                    "• \"How do I report a lost item?\"\n"
+                    "• \"How does claiming work?\"\n"
+                    "• \"What can I do here?\""
+                )
+
+            # Always return the answer
+            if answer is None:
+                answer = "Try 'report lost ring' or ask any question! 😊"
 
             return JsonResponse({'answer': answer})
 
+        except json.JSONDecodeError:
+            return JsonResponse({'answer': "Invalid request. Try again!"})
         except Exception as e:
-            return JsonResponse({'answer': "Sorry, something went wrong. Please try again!"})
+            return JsonResponse({'answer': f"Error: {str(e)}"})
+        
+
+
