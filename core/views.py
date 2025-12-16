@@ -1,4 +1,4 @@
-# core/views.py — FINAL VERSION WITH ALL FIXES
+# core/views.py — FINAL WORKING VERSION
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 import json
 import re
 import base64
-from datetime import date  # ← Added for today's date
+from datetime import date
 
 from .forms import RegisterForm, FoundItemForm, LostClaimForm
 from .models import FoundItem, LostClaim
@@ -134,31 +134,49 @@ def report_lost(request):
     return render(request, 'report_form.html', {'form': form, 'title': 'Report Lost Item'})
 
 
+# REAL AI SMART SEARCH — FIXED TO SHOW RESULTS
 @login_required
 def smart_search_api(request):
     query = request.GET.get('q', '').strip()
     if not query:
         return JsonResponse([], safe=False)
 
+    query_lower = query.lower()
     query_emb = get_embedding(query)
     results = []
 
-    for item in list(FoundItem.objects.all()) + list(LostClaim.objects.all()):
-        text = f"{item.item_name} {item.description}".strip()
+    all_items = list(FoundItem.objects.all()) + list(LostClaim.objects.all())
+
+    for item in all_items:
+        text = f"{item.item_name} {item.description}".lower().strip()
         if not text:
             continue
-        similarity = cosine_similarity(query_emb, get_embedding(text)) * 100
-        if similarity >= 40:
+
+        # 1. Embedding similarity
+        emb_sim = cosine_similarity(query_emb, get_embedding(text)) * 100
+
+        # 2. Keyword overlap fallback
+        query_words = set(query_lower.split())
+        item_words = set(text.split())
+        keyword_score = len(query_words & item_words) / len(query_words) * 80 if query_words else 0
+
+        # 3. Exact name match bonus
+        name_bonus = 50 if query_lower in item.item_name.lower() or item.item_name.lower() in query_lower else 0
+
+        # Final score
+        final_score = max(emb_sim, keyword_score) + name_bonus
+
+        if final_score >= 25:  # Lowered threshold
             results.append({
                 'item_name': item.item_name,
-                'match': round(similarity, 1),
+                'match': round(final_score, 1),
                 'type': 'found' if isinstance(item, FoundItem) else 'lost',
                 'image': item.image.url if item.image else None,
-                'description': item.description[:130] + ("..." if len(item.description) > 130 else item.description)
+                'description': item.description[:150] + ("..." if len(item.description) > 150 else item.description)
             })
 
     results.sort(key=lambda x: x['match'], reverse=True)
-    return JsonResponse(results[:8], safe=False)
+    return JsonResponse(results[:10], safe=False)  # Show up to 10
 
 
 @login_required
@@ -173,6 +191,7 @@ def claim_item(request, item_id):
 
     user_lost_items = LostClaim.objects.filter(owner=request.user)
     matches = []
+
     for lost in user_lost_items:
         vision = ai_image_similarity(lost.image, found_item.image) if lost.image and found_item.image else 0
         text = ai_text_similarity(f"{lost.item_name} {lost.description}", f"{found_item.item_name} {found_item.description}")
@@ -221,7 +240,7 @@ def register(request):
     return render(request, 'registration/register.html', {'form': form})
 
 
-# FINAL INTERACTIVE CHATBOT — WITH IMAGE UPLOAD + AUTO DATE + REPORTING
+# FINAL CHATBOT VIEW — WITH ALL FEATURES
 @method_decorator(csrf_exempt, name='dispatch')
 class ChatbotView(View):
     def post(self, request):
@@ -271,6 +290,7 @@ class ChatbotView(View):
                 state['image_ext'] = ext
                 state['description'] = ai_desc
                 state['has_image'] = True
+                state['step'] = 'contact'
                 session['chatbot_state'] = state
                 session.modified = True
 
@@ -284,7 +304,7 @@ class ChatbotView(View):
                 state['has_image'] = False
                 session['chatbot_state'] = state
                 session.modified = True
-                return JsonResponse({'answer': f"Let's report your **{state['type']}** item!\n\nWhat is the item name? (e.g., bag)"})
+                return JsonResponse({'answer': f"Let's report your **{state['type']}** item!\n\nWhat is the item name? (e.g., bag, ring)"})
 
             # REPORT FLOW
             if state.get('action') == 'report':
@@ -300,7 +320,7 @@ class ChatbotView(View):
                     state['step'] = 'photo'
                     session['chatbot_state'] = state
                     session.modified = True
-                    return JsonResponse({'answer': f"Location: **{question}**\n\nPlease upload a photo 📸 (click camera icon)\n\nOr type 'skip' to continue without photo."})
+                    return JsonResponse({'answer': f"Location: **{question}**\n\nPlease upload a photo 📸 (click the camera icon)\n\nOr type 'skip' to continue without photo."})
 
                 elif state['step'] == 'photo':
                     if q == 'skip':
@@ -320,7 +340,7 @@ class ChatbotView(View):
                     state['contact'] = question
                     today = date.today()
 
-                    # SAVE REPORT — FIXED: Save first, then add image
+                    # SAVE REPORT — FIXED: Save first, get ID, then add image
                     try:
                         if state['type'] == 'lost':
                             obj = LostClaim(
@@ -341,55 +361,13 @@ class ChatbotView(View):
                                 contact_email=state['contact']
                             )
 
-                        obj.save()  # ← Save first to get ID
+                        obj.save()  # Save first to generate ID
 
                         if state.get('has_image'):
                             base64_str = state['image_base64']
                             ext = state['image_ext']
                             image_bytes = base64.b64decode(base64_str)
-                            image_file = ContentFile(image_bytes, name=f'report_{obj.id}.{ext}')
-                            obj.image = image_file
-                            obj.save()  # ← Save again with image
-
-                        del session['chatbot_state']
-                        session.modified = True
-
-                        return JsonResponse({
-                            'answer': f"🎉 **Success!**\n\nYour **{state['type']} {state['item_name']}** reported on {today}.\n\n"
-                                      f"{'AI description + photo added!' if state.get('has_image') else 'No photo — consider adding one later.'}\n\n"
-                                      "Thank you! ❤️"
-                        })
-                    except Exception as e:
-                        return JsonResponse({'answer': f"Save failed: {str(e)}\nTry the regular form."})
-
-                    # SAVE REPORT — FIXED: save first, then add image using saved ID
-                    try:
-                        if state['type'] == 'lost':
-                            obj = LostClaim(
-                                owner=request.user,
-                                item_name=state['item_name'],
-                                description=state.get('description', 'Reported via chatbot'),
-                                approx_location_lost=state['location'],
-                                date_lost=today,
-                                contact_email=state['contact']
-                            )
-                        else:
-                            obj = FoundItem(
-                                reported_by=request.user,
-                                item_name=state['item_name'],
-                                description=state.get('description', 'Reported via chatbot'),
-                                location_found=state['location'],
-                                date_found=today,
-                                contact_email=state['contact']
-                            )
-
-                        obj.save()  # ← Save first to get ID
-
-                        if state.get('has_image'):
-                            base64_str = state['image_base64']
-                            ext = state['image_ext']
-                            image_bytes = base64.b64decode(base64_str)
-                            image_file = ContentFile(image_bytes, name=f'report_{obj.id}.{ext}')
+                            image_file = ContentFile(image_bytes, name=f'report_{obj.pk}.{ext}')  # Use pk (primary key)
                             obj.image = image_file
                             obj.save()  # Save again with image
 
@@ -402,10 +380,9 @@ class ChatbotView(View):
                                       "Thank you! ❤️"
                         })
                     except Exception as e:
-                        return JsonResponse({'answer': f"Save failed: {str(e)}\nTry the regular form."})
+                        return JsonResponse({'answer': f"Save failed: {str(e)}\nPlease try the regular form."})
 
-            
-            # PRECISE, BEAUTIFUL RESPONSES
+            # BASIC RESPONSES
             answer = None  # Initialize answer variable
             
             if any(phrase in q for phrase in ['report', 'submit', 'add item', 'lost item', 'found item', 'how to report', 'report lost', 'report found']):
@@ -499,16 +476,7 @@ class ChatbotView(View):
                     "• \"What can I do here?\""
                 )
 
-            # Always return the answer
-            if answer is None:
-                answer = "Try 'report lost ring' or ask any question! 😊"
+            return JsonResponse({'answer': "Try 'report lost bag' or ask any question! 😊"})
 
-            return JsonResponse({'answer': answer})
-
-        except json.JSONDecodeError:
-            return JsonResponse({'answer': "Invalid request. Try again!"})
         except Exception as e:
             return JsonResponse({'answer': f"Error: {str(e)}"})
-        
-
-
