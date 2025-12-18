@@ -1,120 +1,101 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="h-full" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}FoundIt - Never Lose Hope{% endblock %}</title>
+    <title>{% block title %}FoundIt — Smart Asset Recovery{% endblock %}</title>
 
-    <!-- Tailwind + DaisyUI -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.2/dist/full.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
 
     <style>
-        html, body { margin: 0; padding: 0; height: 100%; overflow-x: hidden; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; scroll-behavior: smooth; }
+        .glass-card { 
+            background: rgba(255, 255, 255, 0.8); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid rgba(226, 232, 240, 0.8); 
+        }
+        #chat-messages::-webkit-scrollbar { width: 4px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         .chat-bubble { white-space: pre-wrap; word-break: break-word; }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-purple-600 via-pink-600 to-indigo-700 text-white">
+<body class="min-h-screen text-slate-900">
 
-    <!-- NAVBAR -->
-    <div class="navbar bg-gradient-to-r from-purple-700 to-pink-700 shadow-2xl px-8 py-5">
-        <div class="flex-1">
-            <a href="{% url 'home' %}" class="text-4xl font-black drop-shadow-2xl hover:scale-105 transition">
-                FoundIt
-            </a>
+    <nav class="sticky top-0 z-[100] px-4 py-3">
+        <div class="max-w-7xl mx-auto navbar glass-card rounded-2xl shadow-sm px-6">
+            <div class="flex-1">
+                <a href="{% url 'home' %}" class="text-2xl font-extrabold tracking-tighter text-indigo-600">
+                    FoundIt<span class="text-indigo-400">.</span>
+                </a>
+            </div>
+            <div class="flex-none gap-2 md:gap-4">
+                {% if user.is_authenticated %}
+                    <div class="hidden lg:block text-sm font-medium text-slate-500 mr-2">Hi, {{ user.username }}</div>
+                    <a href="{% url 'report_lost' %}" class="btn btn-ghost btn-sm rounded-xl text-slate-600">Lost?</a>
+                    <a href="{% url 'report_found' %}" class="btn btn-primary btn-sm rounded-xl px-5 text-white shadow-md shadow-indigo-200 border-none">Found Something</a>
+                    <form method="post" action="{% url 'logout' %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-circle btn-ghost btn-sm text-slate-400" title="Logout">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        </button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-ghost btn-sm">Sign In</a>
+                    <a href="{% url 'register' %}" class="btn btn-primary btn-sm rounded-xl text-white border-none px-6">Join</a>
+                {% endif %}
+            </div>
         </div>
-        <div class="flex-none gap-4 items-center">
-            {% if user.is_authenticated %}
-                <span class="text-xl font-bold">Hi, {{ user.username }}!</span>
-                <a href="{% url 'report_lost' %}" class="btn btn-error btn-lg rounded-full shadow-xl hover:scale-110 transition">
-                    Lost Item
-                </a>
-                <a href="{% url 'report_found' %}" class="btn btn-success btn-lg rounded-full shadow-xl hover:scale-110 transition">
-                    Found Item
-                </a>
-                <form method="post" action="{% url 'logout' %}" class="inline">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-ghost text-white btn-lg hover:bg-white/20 transition">
-                        Logout
-                    </button>
-                </form>
-            {% else %}
-                <a href="{% url 'login' %}" class="btn btn-ghost text-white btn-lg">Login</a>
-                <a href="{% url 'register' %}" class="btn btn-accent btn-lg rounded-full shadow-xl hover:scale-110 transition">
-                    Register
-                </a>
-            {% endif %}
-        </div>
-    </div>
+    </nav>
 
-    <!-- CONTENT -->
-    <div class="w-full">
+    <main class="min-h-[calc(100vh-80px)]">
         {% include 'messages.html' %}
         {% block content %}{% endblock %}
-    </div>
+    </main>
 
-    <!-- AI CHATBOT -->
-    <div id="ai-chatbot" class="fixed bottom-6 right-6 z-50">
-        <button id="chatbot-toggle" class="btn btn-circle btn-primary btn-lg shadow-2xl hover:scale-125 transition-all duration-300">
-            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-            </svg>
+    <div id="ai-chatbot" class="fixed bottom-8 right-8 z-[101]">
+        <button id="chatbot-toggle" class="btn btn-circle btn-primary btn-lg shadow-xl border-none hover:scale-110 transition-all duration-300">
+            <svg class="w-6 h-6" fill="white" viewBox="0 0 24 24"><path d="M12 2C6.47 2 2 6.47 2 12c0 1.88.52 3.65 1.44 5.15L2 22l4.85-1.44C8.35 21.48 10.12 22 12 22c5.53 0 10-4.47 10-10S17.53 2 12 2zm0 18c-1.65 0-3.2-.44-4.54-1.21l-3.23.96.96-3.23C4.44 15.2 4 13.65 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z"/></svg>
         </button>
 
-        <div id="chat-window" class="hidden absolute bottom-20 right-0 w-[420px] md:w-[480px] h-[680px] bg-white rounded-3xl shadow-4xl overflow-hidden border border-purple-200 flex flex-col"
-            style="transform: scale(0.8); opacity: 0; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);">
-            
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
-                <div class="flex justify-between items-center">
+        <div id="chat-window" class="hidden absolute bottom-20 right-0 w-[90vw] md:w-[400px] h-[600px] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right" style="opacity: 0; transform: scale(0.9) translateY(20px);">
+            <div class="bg-slate-900 p-5 flex justify-between items-center text-white">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center font-bold text-xs italic">AI</div>
                     <div>
-                        <h3 class="text-2xl font-black">FoundIt Assistant</h3>
-                        <p class="text-sm opacity-90">Ask me anything!</p>
+                        <h3 class="font-bold text-sm tracking-tight">FoundIt Assistant</h3>
+                        <span class="text-[10px] text-green-400 uppercase tracking-widest font-bold">Online</span>
                     </div>
-                    <button id="chat-close" class="btn btn-circle btn-ghost text-white hover:bg-white/20">✕</button>
                 </div>
+                <button id="chat-close" class="btn btn-circle btn-ghost btn-sm text-slate-400">✕</button>
             </div>
 
-            <!-- Messages -->
-            <div id="chat-messages" class="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-purple-50 to-pink-50 space-y-4">
-                <div class="chat chat-start">
-                    <div class="chat-bubble bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-2xl rounded-2xl p-5 max-w-[85%]">
-                        <p class="text-xl font-bold mb-3">Hey there! 👋</p>
-                        <p class="text-base leading-relaxed mb-4">
-                            I'm your personal AI assistant for FoundIt.
-                        </p>
-                        <p class="text-base font-semibold mb-2">Try asking:</p>
-                        <ul class="space-y-2 text-base leading-relaxed list-disc list-inside ml-2">
-                            <li>How do I report a lost item?</li>
-                            <li>How does the AI matching work?</li>
-                            <li>How do I claim an item?</li>
-                        </ul>
+            <div id="chat-messages" class="flex-1 p-5 overflow-y-auto bg-slate-50 space-y-4">
+                <div class="flex flex-col items-start mb-2">
+                    <div class="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-none text-sm text-slate-700 shadow-sm max-w-[85%]">
+                        <p class="font-bold mb-1 text-indigo-600">Hey there! 👋</p>
+                        I'm your AI assistant. You can ask me how to report items, or <strong>upload a photo</strong> for me to analyze!
                     </div>
                 </div>
             </div>
 
-            <!-- Input + Image Upload Button -->
-            <div class="p-6 bg-white border-t border-purple-100">
-                <div class="flex gap-3">
-                    <!-- Image Upload Button -->
-                    <button id="chat-upload-btn" class="btn btn-ghost btn-circle btn-lg hover:bg-purple-100 transition">
-                        <svg class="w-7 h-7 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                    </button>
-
-                    <!-- Text Input -->
-                    <input type="text" id="chat-input" placeholder="Ask me anything..." 
-                        class="input input-bordered input-lg flex-1 rounded-full bg-gray-100 text-gray-800 placeholder-gray-500 focus:bg-white focus:ring-4 focus:ring-purple-400 focus:border-purple-500 transition-all"/>
-
-                    <!-- Send Button -->
-                    <button id="chat-send" class="btn btn-primary btn-circle btn-lg hover:scale-110 transition-all shadow-xl">
-                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                        </svg>
-                    </button>
+            <div class="p-4 bg-white border-t border-slate-100">
+                <div class="flex items-center gap-2 bg-slate-100 rounded-2xl px-3 py-1 border border-slate-200">
+                    <button id="chat-upload-btn" class="p-2 text-slate-400 hover:text-indigo-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></button>
+                    <input type="text" id="chat-input" placeholder="Ask something..." class="bg-transparent border-none focus:ring-0 text-sm w-full py-3 outline-none"/>
+                    <button id="chat-send" class="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg></button>
                 </div>
             </div>
         </div>
@@ -142,102 +123,65 @@
         const chatClose = document.getElementById('chat-close');
         const chatInput = document.getElementById('chat-input');
         const chatSend = document.getElementById('chat-send');
-        const chatUploadBtn = document.getElementById('chat-upload-btn'); // Camera button
+        const chatUploadBtn = document.getElementById('chat-upload-btn');
+        const chatMessages = document.getElementById('chat-messages');
 
-        // Animation
         chatbotToggle.onclick = () => {
-            chatWindow.classList.remove('hidden');
-            setTimeout(() => {
-                chatWindow.style.transform = 'scale(1)';
-                chatWindow.style.opacity = '1';
-            }, 10);
+            chatWindow.classList.toggle('hidden');
+            if (!chatWindow.classList.contains('hidden')) {
+                setTimeout(() => { chatWindow.style.opacity = '1'; chatWindow.style.transform = 'scale(1) translateY(0)'; }, 10);
+            }
         };
 
         chatClose.onclick = () => {
-            chatWindow.style.transform = 'scale(0.8)';
-            chatWindow.style.opacity = '0';
-            setTimeout(() => chatWindow.classList.add('hidden'), 350);
+            chatWindow.style.opacity = '0'; chatWindow.style.transform = 'scale(0.9) translateY(20px)';
+            setTimeout(() => chatWindow.classList.add('hidden'), 300);
         };
 
-        // Send text
-        chatSend.onclick = sendMessage;
-        chatInput.addEventListener('keypress', e => {
-            if (e.key === 'Enter') sendMessage();
-        });
+        function addMessage(text, direction, isTyping = false) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `flex flex-col ${direction === 'chat-end' ? 'items-end' : 'items-start'} mb-2`;
+            const isUser = direction === 'chat-end';
+            const bubbleClass = isUser ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-none' : 'bg-white text-slate-700 border border-slate-200 rounded-2xl rounded-tl-none';
+            wrapper.innerHTML = `<div class="${bubbleClass} p-4 text-sm max-w-[85%] shadow-sm">${isTyping ? '<span class="loading loading-dots loading-xs"></span>' : text.replace(/\n/g, '<br>')}</div>`;
+            chatMessages.appendChild(wrapper);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return wrapper;
+        }
 
         async function sendMessage() {
             const question = chatInput.value.trim();
             if (!question) return;
-
-            addMessage(question, 'chat-end', 'bg-gradient-to-r from-gray-800 to-black text-white');
+            addMessage(question, 'chat-end');
             chatInput.value = '';
-
-            const typing = addMessage('Typing...', 'chat-start', 'bg-purple-200 text-purple-800 italic');
-
+            const typing = addMessage('', 'chat-start', true);
             try {
-                const res = await fetch('/api/chatbot/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                    body: JSON.stringify({ question })
-                });
+                const res = await fetch('/api/chatbot/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken }, body: JSON.stringify({ question }) });
                 const data = await res.json();
-                typing.remove();
-                addMessage(data.answer, 'chat-start', 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-2xl');
-            } catch (e) {
-                typing.remove();
-                addMessage("Connection error. Try again!", 'chat-start', 'bg-red-500 text-white');
-            }
+                typing.remove(); addMessage(data.answer, 'chat-start');
+            } catch (e) { typing.remove(); addMessage("Error.", 'chat-start'); }
         }
 
-        // IMAGE UPLOAD — FIXED
         chatUploadBtn.onclick = () => {
             const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'image/*';
+            fileInput.type = 'file'; fileInput.accept = 'image/*';
             fileInput.onchange = async () => {
-                const file = fileInput.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
+                const file = fileInput.files[0]; if (!file) return;
+                const reader = new FileReader(); reader.readAsDataURL(file);
                 reader.onload = async () => {
-                    const base64 = reader.result;
-
-                    addMessage('Uploading photo...', 'chat-end', 'bg-gradient-to-r from-gray-800 to-black text-white');
-                    const typing = addMessage('Analyzing with AI...', 'chat-start', 'bg-purple-200 text-purple-800 italic');
-
+                    addMessage('Sent a photo...', 'chat-end');
+                    const typing = addMessage('', 'chat-start', true);
                     try {
-                        const res = await fetch('/api/chatbot/', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                            body: JSON.stringify({ image: base64 })
-                        });
-                        const data = await res.json();
-                        typing.remove();
-                        addMessage(data.answer, 'chat-start', 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-2xl');
-                    } catch (e) {
-                        typing.remove();
-                        addMessage("Upload failed. Try again!", 'chat-start', 'bg-red-500 text-white');
-                    }
+                        const res = await fetch('/api/chatbot/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken }, body: JSON.stringify({ image: reader.result }) });
+                        const data = await res.json(); typing.remove(); addMessage(data.answer, 'chat-start');
+                    } catch (e) { typing.remove(); addMessage("Failed.", 'chat-start'); }
                 };
             };
             fileInput.click();
         };
 
-        function addMessage(text, direction, bgClass) {
-            const container = document.getElementById('chat-messages');
-            const div = document.createElement('div');
-            div.className = `chat ${direction} mb-8`;
-            div.innerHTML = `
-                <div class="chat-bubble ${bgClass} shadow-2xl p-8 rounded-3xl text-lg leading-relaxed max-w-[85%] break-words">
-                    ${text.replace(/\n/g, '<br>')}
-                </div>
-            `;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-            return div;
-        }
+        chatSend.onclick = sendMessage;
+        chatInput.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
     </script>
-
 </body>
 </html>
