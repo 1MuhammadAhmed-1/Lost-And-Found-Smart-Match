@@ -1,126 +1,107 @@
 {% extends 'base.html' %}
-{% load static %}
-
 {% block content %}
-<!-- FULL BLEED HERO — NO WHITE BORDERS EVER AGAIN -->
-<div class="min-h-screen bg-gradient-to-br from-purple-600 via-pink-600 to-indigo-700 relative overflow-hidden">
-    <!-- Background Pattern (optional extra depth) -->
-    <div class="absolute inset-0 opacity-20">
-        <div class="absolute inset-0" style="background-image: url('https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1920'); background-size: cover; filter: blur(4px);"></div>
-    </div>
 
-    <div class="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 py-20">
-        <h1 class="text-7xl md:text-9xl font-black text-white drop-shadow-3xl mb-6 text-center leading-tight">
-            Never Lose Hope
+<section class="relative pt-24 pb-32 px-6 overflow-hidden">
+    <div class="absolute inset-0 -z-10 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+    <div class="max-w-4xl mx-auto text-center">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-bold uppercase tracking-widest mb-10">
+            🚀 Neural Matching Engine Active
+        </div>
+        <h1 class="text-5xl md:text-8xl font-black text-slate-900 tracking-tight mb-8">
+            Lost Today. <br><span class="text-indigo-600">Found Now.</span>
         </h1>
-        <p class="text-2xl md:text-4xl text-white/90 font-light mb-16 text-center">
-            AI-Powered Lost & Found with Gemini Vision + Embeddings
+        <p class="text-lg md:text-xl text-slate-500 font-medium max-w-2xl mx-auto mb-16 leading-relaxed">
+            AI-powered recovery network using Gemini Vision and semantic embeddings to find matches instantly.
         </p>
 
-        <!-- EPIC SEARCH BAR -->
-        <div class="w-full max-w-4xl mx-auto mb-20">
-            <div class="relative">
-                <div class="flex gap-4 shadow-2xl">
-                    <input type="text" id="ai-search"
-                           placeholder="AI Search: 'red nike backpack', 'black iPhone cracked screen', 'car keys'..."
-                           class="input input-lg w-full text-xl bg-white/95 backdrop-blur-lg border-0 rounded-3xl px-10 py-8 text-gray-800 focus:outline-none focus:ring-4 focus:ring-purple-400">
-                    <button onclick="smartSearch()" class="btn btn-primary btn-lg rounded-3xl px-12 shadow-xl hover:shadow-purple-500/50 transform hover:scale-105 transition">
-                        Search with AI
-                    </button>
+        <div class="max-w-2xl mx-auto glass-card p-2 rounded-2xl shadow-2xl shadow-indigo-100 border border-slate-200">
+            <div class="flex flex-col md:flex-row gap-2">
+                <div class="flex-1 flex items-center px-4 gap-3">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <input type="text" id="ai-search" placeholder="Describe your item..." class="bg-transparent border-none focus:ring-0 text-slate-700 w-full py-4 text-sm outline-none">
+                </div>
+                <button onclick="smartSearch()" class="btn btn-primary rounded-xl px-10 text-white border-none shadow-lg">Search AI</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="max-w-6xl mx-auto px-6 pb-32">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
+        <div class="md:col-span-2 bg-slate-900 rounded-[2.5rem] p-12 text-white relative overflow-hidden group min-h-[400px]">
+            <div class="relative z-10">
+                <div class="w-12 h-12 bg-indigo-600 rounded-2xl mb-8 flex items-center justify-center">✨</div>
+                <h3 class="text-3xl font-bold mb-4 tracking-tight">Computer Vision</h3>
+                <p class="text-slate-400 leading-relaxed text-sm">Upload a photo and let our AI handle the metadata. No more long forms.</p>
+            </div>
+            <a href="{% url 'report_found' %}" class="btn btn-sm bg-white text-black border-none rounded-xl mt-8 w-fit z-10">Try Vision</a>
+            <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl transition-transform duration-1000 group-hover:scale-150"></div>
+        </div>
+
+        <div class="md:col-span-2 bg-white border border-slate-200 rounded-[2.5rem] p-12 flex flex-col justify-between hover:border-indigo-200 transition-all group">
+            <h3 class="text-3xl font-bold text-slate-900 mb-4">Semantic Search</h3>
+            <p class="text-slate-500 text-sm italic">Search by meaning, not just keywords.</p>
+            <div class="mt-12 overflow-hidden rounded-2xl bg-slate-50 border border-slate-100 p-4">
+                <div class="flex items-center gap-3 animate__animated animate__fadeInRight animate__infinite animate__slower" style="animation-duration: 8s;">
+                    <span class="badge badge-sm bg-indigo-100 text-indigo-600 border-none">iPhone 13</span> <span class="text-slate-300">→</span> <span class="badge badge-sm bg-emerald-100 text-emerald-600 border-none">98% Match</span>
                 </div>
             </div>
-
-            <!-- ANIMATED SEARCH RESULTS MODAL (starts hidden) -->
-            <div id="search-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center px-6">
-                <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeModal()"></div>
-                <div class="relative bg-white/95 backdrop-blur-xl rounded-3xl shadow-4xl max-w-4xl w-full max-h-[80vh] overflow-hidden animate__animated animate__zoomIn animate__faster">
-                    <div class="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 flex justify-between items-center rounded-t-3xl">
-                        <h3 class="text-3xl font-bold">AI Search Results</h3>
-                        <button onclick="closeModal()" class="btn btn-circle btn-ghost text-white hover:bg-white/20">✕</button>
-                    </div>
-                    <div id="search-results" class="p-10 overflow-y-auto max-h-[60vh]"></div>
-                </div>
-            </div>
         </div>
 
-        <!-- ACTION BUTTONS -->
-        <div class="flex flex-col sm:flex-row gap-8 mb-20">
-            <a href="{% url 'found_list' %}" class="btn btn-success btn-lg text-3xl px-16 py-8 rounded-3xl shadow-2xl hover:shadow-green-500/50 transform hover:scale-110 transition">
-                Browse Found Items
-            </a>
-            <a href="{% url 'lost_list' %}" class="btn btn-error btn-lg text-3xl px-16 py-8 rounded-3xl shadow-2xl hover:shadow-red-500/50 transform hover:scale-110 transition">
-                Browse Lost Items
-            </a>
-        </div>
+        <a href="{% url 'found_list' %}" class="md:col-span-2 bg-indigo-50 border border-indigo-100 rounded-[2rem] p-8 flex items-center justify-between group hover:bg-indigo-100 transition-colors">
+            <div class="flex items-center gap-6">
+                <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm text-2xl">📦</div>
+                <div><h4 class="font-bold text-slate-900">Browse Database</h4><p class="text-xs text-slate-500">View found items</p></div>
+            </div>
+            <svg class="w-5 h-5 text-indigo-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+        </a>
 
-        <!-- FEATURE CARDS -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-6xl w-full">
-            <div class="bg-white/20 backdrop-blur-lg rounded-3xl p-10 text-center border border-white/30 transform hover:scale-105 transition">
-                <h3 class="text-4xl font-bold text-white mb-4">Gemini Vision</h3>
-                <p class="text-xl text-white/90">Upload photo → AI writes perfect description instantly</p>
+        <a href="{% url 'lost_list' %}" class="md:col-span-2 bg-rose-50 border border-rose-100 rounded-[2rem] p-8 flex items-center justify-between group hover:bg-rose-100 transition-colors">
+            <div class="flex items-center gap-6">
+                <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm text-2xl">🔍</div>
+                <div><h4 class="font-bold text-slate-900">Report Missing</h4><p class="text-xs text-slate-500">Post a lost item</p></div>
             </div>
-            <div class="bg-white/20 backdrop-blur-lg rounded-3xl p-10 text-center border border-white/30 transform hover:scale-105 transition">
-                <h3 class="text-4xl font-bold text-white mb-4">AI Matching</h3>
-                <p class="text-xl text-white/90">Click "Claim" → AI compares your lost items automatically</p>
-            </div>
-            <div class="bg-white/20 backdrop-blur-lg rounded-3xl p-10 text-center border border-white/30 transform hover:scale-105 transition">
-                <h3 class="text-4xl font-bold text-white mb-4">Smart Search</h3>
-                <p class="text-xl text-white/90">Type anything → Real AI finds perfect matches</p>
-            </div>
+            <svg class="w-5 h-5 text-rose-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+        </a>
+    </div>
+</section>
+
+<div id="search-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center px-4">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onclick="closeModal()"></div>
+    <div class="relative bg-white rounded-[2rem] shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col animate__animated animate__fadeInUp animate__faster">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="text-lg font-bold">AI Match Results</h3>
+            <button onclick="closeModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">✕</button>
         </div>
+        <div id="search-results" class="p-6 overflow-y-auto space-y-4 bg-white"></div>
     </div>
 </div>
 
-<!-- Animate.css -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
-
 <script>
-async function smartSearch() {
-    const query = document.getElementById('ai-search').value.trim();
-    if (!query) return;
-
-    const res = await fetch(`/api/smart-search/?q=${encodeURIComponent(query)}`);
-    const results = await res.json();
-
-    const container = document.getElementById('search-results');
-    container.innerHTML = results.length ? 
-        results.map(r => `
-            <div class="bg-white/90 backdrop-blur rounded-2xl shadow-2xl p-8 mb-6 hover:scale-105 transition-all duration-300 border border-purple-200">
-                <div class="flex items-center justify-between">
-                    ${r.image ? `<img src="${r.image}" class="w-32 h-32 object-cover rounded-2xl shadow-xl">` : ''}
-                    <div class="flex-1 ${r.image ? 'ml-10' : ''}">
-                        <div class="text-5xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                            ${r.match}% Match
-                        </div>
-                        <h4 class="text-3xl font-bold mt-3">${r.item_name}</h4>
-                        <span class="badge badge-lg mt-4 px-6 py-3 text-white ${r.type === 'found' ? 'bg-success' : 'bg-error'}">
-                            ${r.type.toUpperCase()}
-                        </span>
+    async function smartSearch() {
+        const query = document.getElementById('ai-search').value.trim();
+        if (!query) return;
+        const modal = document.getElementById('search-modal');
+        const container = document.getElementById('search-results');
+        modal.classList.remove('hidden');
+        container.innerHTML = `<div class="text-center py-16"><span class="loading loading-spinner loading-lg text-indigo-600"></span><p class="text-slate-400 text-sm mt-4">Analyzing...</p></div>`;
+        try {
+            const res = await fetch(`/api/smart-search/?q=${encodeURIComponent(query)}`);
+            const results = await res.json();
+            if (results.length === 0) { container.innerHTML = `<p class="text-center py-10 text-slate-500">No matches found.</p>`; return; }
+            container.innerHTML = results.map(r => `
+                <div class="flex gap-5 p-5 rounded-2xl border border-slate-100 hover:bg-slate-50 transition-all">
+                    <img src="${r.image || 'https://via.placeholder.com/150'}" class="w-20 h-20 object-cover rounded-xl">
+                    <div class="flex-1">
+                        <div class="flex justify-between items-start mb-1"><h4 class="font-bold text-slate-900">${r.item_name}</h4><span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">${r.match}% Match</span></div>
+                        <p class="text-xs text-slate-500 line-clamp-1">AI-suggested match found on campus.</p>
+                        <div class="flex items-center justify-between mt-3"><span class="px-3 py-1 rounded-lg text-[10px] font-black uppercase ${r.type === 'found' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${r.type}</span><button class="text-indigo-600 text-xs font-bold">Details →</button></div>
                     </div>
-                </div>
-            </div>
-        `).join('') :
-        `<div class="text-center py-20">
-            <p class="text-4xl text-white/80 font-light">No matches found</p>
-            <p class="text-2xl text-white/60 mt-4">Try: "${query}"</p>
-        </div>`;
-
-    // SHOW MODAL WITH ANIMATION
-    document.getElementById('search-modal').classList.remove('hidden');
-}
-
-function closeModal() {
-    const modal = document.getElementById('search-modal');
-    modal.classList.add('animate__zoomOut');
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('animate__zoomOut');
-    }, 300);
-}
-
-// Close on Escape
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
-});
+                </div>`).join('');
+        } catch (e) { container.innerHTML = `<p class="text-center py-10 text-rose-500">Error.</p>`; }
+    }
+    function closeModal() { document.getElementById('search-modal').classList.add('hidden'); }
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 </script>
 {% endblock %}
