@@ -6,66 +6,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login • FoundIt</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-    body {
-        position: relative;
-        min-height: 100vh;
-    }
-    body::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: linear-gradient(to bottom right, #9333ea, #ec4899, #6366f1);
-        background-image: url('https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1920&q=80');
-        background-size: cover;
-        background-position: center;
-        opacity: 0.88;
-        z-index: -10;
-        filter: blur(2px);
-    }
-</style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .bg-mesh {
+            background-color: #0f172a;
+            background-image: radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.15) 0, transparent 50%), 
+                              radial-gradient(at 100% 100%, rgba(225, 29, 72, 0.1) 0, transparent 50%);
+        }
+    </style>
 </head>
-<body class="h-full flex items-center justify-center p-6 relative">
+<body class="bg-mesh h-full flex items-center justify-center p-6">
+    <div class="max-w-md w-full animate__animated animate__fadeIn">
+        <div class="text-center mb-8">
+            <a href="/" class="text-4xl font-black text-white tracking-tighter mb-2 inline-block">
+                FoundIt<span class="text-indigo-500">.</span>
+            </a>
+            <p class="text-slate-400 text-sm font-medium">Welcome back to the recovery network</p>
+        </div>
 
-<div class="max-w-md w-full">
-    <div class="text-center mb-10">
-        <h1 class="text-6xl font-black text-white drop-shadow-2xl mb-4">FoundIt</h1>
-        <p class="text-xl text-white/90 font-light">Welcome back, legend</p>
-    </div>
+        <div class="glass-container rounded-[2.5rem] p-10 shadow-2xl">
+            <h2 class="text-2xl font-bold text-white mb-8">Sign In</h2>
 
-    <div class="backdrop-blur-xl bg-white/20 rounded-3xl shadow-3xl p-10 border border-white/30">
-        <h2 class="text-4xl font-bold text-white text-center mb-8">Login</h2>
+            <form method="post" class="space-y-5">
+                {% csrf_token %}
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Username</label>
+                    <input type="text" name="username" required autofocus
+                           class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Password</label>
+                    <input type="password" name="password" required
+                           class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all">
+                </div>
 
-        <form method="post" class="space-y-6">
-            {% csrf_token %}
-            <div>
-                <input type="text" name="username" required
-                       class="w-full px-6 py-5 rounded-2xl bg-white/30 backdrop-blur-lg border border-white/50 text-white placeholder-white/70 text-lg focus:outline-none focus:ring-4 focus:ring-white/50 transition"
-                       placeholder="Username" autofocus>
+                <button type="submit"
+                        class="w-full py-4 mt-4 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 hover:scale-[1.02] active:scale-95 transition-all">
+                    Access Account
+                </button>
+            </form>
+
+            <div class="mt-10 pt-6 border-t border-white/5 text-center">
+                <p class="text-slate-400 text-xs">
+                    New to FoundIt? 
+                    <a href="{% url 'register' %}" class="font-bold text-white hover:text-indigo-400 transition ml-1">
+                        Create an account →
+                    </a>
+                </p>
             </div>
-            <div>
-                <input type="password" name="password" required
-                       class="w-full px-6 py-5 rounded-2xl bg-white/30 backdrop-blur-lg border border-white/50 text-white placeholder-white/70 text-lg focus:outline-none focus:ring-4 focus:ring-white/50 transition"
-                       placeholder="Password">
-            </div>
-
-            <button type="submit"
-                    class="w-full py-6 rounded-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white text-2xl font-bold shadow-2xl hover:shadow-pink-500/50 transform hover:scale-105 transition-all duration-300">
-                Login Now
-            </button>
-        </form>
-
-        <div class="mt-8 text-center">
-            <p class="text-white/80">
-                Don't have an account?
-                <a href="{% url 'register' %}" class="font-bold text-white underline hover:text-yellow-300 transition">
-                    Register here →
-                </a>
-            </p>
         </div>
     </div>
-</div>
-
 </body>
 </html>
