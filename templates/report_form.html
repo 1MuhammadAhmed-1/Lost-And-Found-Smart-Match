@@ -1,60 +1,81 @@
 {% extends 'base.html' %}
-{% load static %}
-
 {% block content %}
-<div class="min-h-screen bg-base-200 py-12 px-4">
-    <div class="max-w-3xl mx-auto">
-        <h1 class="text-5xl font-bold text-center mb-10 text-primary">{{ title }}</h1>
+<div class="max-w-3xl mx-auto px-6 py-16">
+    <div class="text-center mb-12">
+        <h1 class="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">{{ title }}</h1>
+        <p class="text-slate-500 font-medium italic">Our Gemini AI will analyze your photo to help others find it faster.</p>
+    </div>
 
-        <div class="card bg-base-100 shadow-2xl">
-            <div class="card-body">
-                <!-- FORM STARTS HERE -->
-                <form method="post" enctype="multipart/form-data" class="space-y-8">
-                    {% csrf_token %} <!-- THIS LINE WAS MISSING — NOW FIXED! -->
+    <div class="glass-card rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-slate-200">
+        <form method="post" enctype="multipart/form-data" class="space-y-8">
+            {% csrf_token %}
 
-                    <!-- Image Upload with AI hint -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text text-lg font-bold text-accent">
-                                Upload Photo (Gemini AI will describe it automatically!)
-                            </span>
-                        </label>
-                        <input type="file" name="image" accept="image/*" class="file-input file-input-bordered file-input-primary w-full" />
-                        <label class="label">
-                            <span class="label-text-alt text-success">AI will analyze your photo in seconds</span>
-                        </label>
+            <div class="form-control">
+                <label class="group relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50 hover:bg-indigo-50/50 hover:border-indigo-300 transition-all cursor-pointer overflow-hidden">
+                    <div id="upload-placeholder" class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <div class="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">📸</div>
+                        <p class="text-sm font-bold text-slate-700">Drop your photo here</p>
+                        <p class="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB</p>
                     </div>
-
-                    <!-- All other form fields -->
-                    {% for field in form %}
-                        {% if field.name != 'image' %}
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-medium">{{ field.label }}</span>
-                            </label>
-                            {{ field }}
-                            {% if field.help_text %}
-                                <label class="label">
-                                    <span class="label-text-alt">{{ field.help_text }}</span>
-                                </label>
-                            {% endif %}
-                            {% if field.errors %}
-                                <label class="label">
-                                    <span class="label-text-alt text-error">{{ field.errors }}</span>
-                                </label>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                    {% endfor %}
-
-                    <div class="form-control mt-8">
-                        <button type="submit" class="btn btn-primary btn-lg w-full">
-                            Submit & Let AI Describe!
-                        </button>
-                    </div>
-                </form>
+                    <img id="image-preview" class="hidden absolute inset-0 w-full h-full object-cover rounded-[2rem]">
+                    <input type="file" name="image" id="id_image" accept="image/*" class="hidden" onchange="previewImage(this)">
+                </label>
+                <div class="flex items-center gap-2 mt-3 px-2">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+                    </span>
+                    <span class="text-[10px] font-black text-indigo-600 uppercase tracking-widest">AI Vision Processing Enabled</span>
+                </div>
             </div>
-        </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% for field in form %}
+                    {% if field.name != 'image' %}
+                    <div class="form-control w-full">
+                        <label class="label px-1">
+                            <span class="label-text font-bold text-slate-700 text-xs uppercase tracking-wider">{{ field.label }}</span>
+                        </label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <p class="text-[10px] text-rose-500 font-bold mt-1 px-1 uppercase">{{ field.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <div class="pt-6">
+                <button type="submit" class="btn btn-primary btn-lg w-full rounded-2xl border-none text-white shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all">
+                    Submit to Recovery Network
+                </button>
+                <p class="text-center text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-6">
+                    Secure 256-bit Encrypted Submission
+                </p>
+            </div>
+        </form>
     </div>
 </div>
+
+<script>
+    // Live Preview Logic for the "Magic Zone"
+    function previewImage(input) {
+        const preview = document.getElementById('image-preview');
+        const placeholder = document.getElementById('upload-placeholder');
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('opacity-0');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // Modern Form Styling Injector
+    document.querySelectorAll('input:not([type="file"]), select, textarea').forEach(el => {
+        el.className = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none transition-all";
+    });
+</script>
 {% endblock %}
