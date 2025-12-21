@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.core.files.base import ContentFile
+from django.conf import settings
 import json
 import re
 import base64
@@ -23,8 +24,7 @@ import mimetypes
 import numpy as np
 from numpy.linalg import norm
 
-genai.configure(api_key="AIzaSyAaZduo5QrN1CIK8n-ZhYdkIhyHrRmuJGA")
-
+genai.configure(api_key=settings.GEMINI_API_KEY)
 # --------------------- AI HELPER FUNCTIONS ---------------------
 
 def describe_with_gemini(image_field):
