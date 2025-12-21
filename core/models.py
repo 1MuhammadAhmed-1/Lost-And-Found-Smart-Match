@@ -29,7 +29,7 @@ class FoundItem(models.Model):
     
     # CRUCIAL FOR AI MATCHING
     item_name = models.CharField(max_length=100)
-    description = models.TextField(help_text="Detailed description of the item, color, condition, etc.")
+    description = models.TextField(blank=True, help_text="Detailed description of the item, color, condition, etc.")
     
     location_found = models.CharField(max_length=100)
     date_found = models.DateField()
@@ -69,7 +69,7 @@ class LostClaim(models.Model):
     
     # CRUCIAL FOR AI MATCHING
     item_name = models.CharField(max_length=100)
-    description = models.TextField(help_text="Detailed description of the lost item.")
+    description = models.TextField(blank=True, help_text="Detailed description of the lost item.")
     
     approx_location_lost = models.CharField(max_length=100, null=True, blank=True)
     date_lost = models.DateField()
