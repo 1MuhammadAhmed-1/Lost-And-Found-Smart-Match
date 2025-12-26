@@ -1,27 +1,29 @@
 import os
+import environ
 from pathlib import Path
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Initialize environment variables
+env = environ.Env(
+    # set casting, default value
+    DEBUG=(bool, False)
+)
+
+# Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# The location of your root URLconf (the main urls.py file)
-ROOT_URLCONF = 'lost_and_found_project.urls'
+# Read .env file
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env('DEBUG')
 
-# WARNING: KEEP THIS KEY SECRET!
-SECRET_KEY = 'django-insecure-33%^8t_h#99t0a(1001-t!5h$b238n91t6@#e$b!d#91d' 
-# NOTE: In a real project, you would generate a unique key 
-# and load it from an environment variable (e.g., using python-dotenv).
+ALLOWED_HOSTS = ['*'] # Modified for development flexibility
 
-# When DEBUG=True, ALLOWED_HOSTS can be empty or ['*'] for development.
-# If DEBUG=False, it must contain domain names or IP addresses.
-ALLOWED_HOSTS = []
-
-# --- FIX 1: ADD CORS HEADERS APP ---
+# Application definition
 INSTALLED_APPS = [
-    # Default Django Apps...
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -29,27 +31,18 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    'rest_framework.authtoken',
-    "corsheaders",  # <-- ADDED: CORS Headers
-    "core",# <-- Your new app
+    "rest_framework.authtoken",
+    "corsheaders",
+    "core", 
 ]
 
-# 2. Configure the MongoDB database connection using os.environ.get
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# Custom User Model - MUST match your app name (core)
+AUTH_USER_MODEL = 'core.RegUser'
 
-# 1. Add your custom User Model setting
-AUTH_USER_MODEL = 'core.RegUser' 
-
-# --- FIX 2: ADD CORS MIDDLEWARE ---
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # <-- ADDED: Must be high up
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -57,10 +50,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+ROOT_URLCONF = 'lost_and_found_project.urls'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -73,6 +68,42 @@ TEMPLATES = [
     },
 ]
 
+WSGI_APPLICATION = 'lost_and_found_project.wsgi.application'
+
+# Database
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
+# Password validation
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+# Internationalization
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+
+# Media files (Uploaded images)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# REST Framework Settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
@@ -82,17 +113,12 @@ REST_FRAMEWORK = {
     ],
 }
 
-# --- FIX 3: CORS Configuration ---
-# Allow all origins for development (safer would be: http://localhost:3000)
+# CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = True 
-
-# CRITICAL FIX: Explicitly allow the Authorization header
-# This ensures the browser doesn't block the POST request because of the 
-# 'Authorization: Token ...' header being non-standard.
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
-    'authorization', # <--- MUST BE PRESENT
+    'authorization',
     'content-type',
     'dnt',
     'origin',
@@ -100,23 +126,11 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
-# -----------------------------------
 
-
-# Static files (CSS, JavaScript, Images)
-STATIC_URL = '/static/'
-
-# Media files (for future image upload)
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# Templates directory
-TEMPLATES[0]['DIRS'] = [os.path.join(BASE_DIR, 'templates')]
-
-# Login settings
+# Login/Logout URLs
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 LOGIN_URL = '/login/'
 
-# Static files in development
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+# AI CUSTOM SETTINGS
+GEMINI_API_KEY = env('GEMINI_API_KEY')
