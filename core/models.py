@@ -84,3 +84,32 @@ class LostClaim(models.Model):
     
     def __str__(self):
         return f"Lost: {self.item_name} by {self.owner.username}"
+    
+    # 4. CLAIM REQUEST (The bridge between Finder and Claimant)
+class ClaimRequest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    found_item = models.ForeignKey(FoundItem, on_delete=models.CASCADE, related_name='claims')
+    claimant = models.ForeignKey(RegUser, on_delete=models.CASCADE, related_name='my_requests')
+    
+    # Verification Fields
+    proof_description = models.TextField(help_text="Claimant's description of unique details.")
+    status = models.CharField(max_length=20, choices=[
+        ('PENDING', 'Pending Review'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected')
+    ], default='PENDING')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Claim for {self.found_item.item_name} by {self.claimant.username}"
+
+# 5. ANONYMOUS CHAT SYSTEM
+class ChatMessage(models.Model):
+    claim_request = models.ForeignKey(ClaimRequest, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(RegUser, on_delete=models.CASCADE)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['timestamp']
