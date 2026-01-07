@@ -28,51 +28,40 @@ def report_found_item(item_name: str, description: str, location_found: str, con
 
 # --- 2. TOOL TO SEARCH FOR MATCHES (The Smart Match Logic) ---
 def search_for_matches(query: str, location: str = None) -> str:
-    """
-    Searches the database for found items that might match a user's lost item description. 
-    Use this when a user is looking for a lost item.
-    
-    Returns a string summary of the top matching found items.
-    """
-    
-    # Simple filtering for pending items
     potential_matches = FoundItem.objects.filter(status='PENDING')
-
     matches = []
-    
-    # Combine query components for a better match search
     full_query = f"{query} {location or ''}".strip().lower()
     
+    # Simple list of common item types to prevent "Ring" matching "Phone"
+    item_types = ['ring', 'phone', 'wallet', 'keys', 'bag', 'laptop', 'bottle']
+
     for item in potential_matches:
-        # Calculate matching score using name and description
+        item_name_lower = item.item_name.lower()
         item_text = f"{item.item_name} {item.description} {item.location_found}".lower()
         
-        # Use a high-quality ratio score for overall similarity
-        combined_score = fuzz.token_sort_ratio(full_query, item_text)
+        # 1. BRAINS: Check for Category Mismatch
+        # If the user says 'phone' but the item is a 'ring', skip or penalize heavily
+        category_mismatch = False
+        for itype in item_types:
+            if itype in full_query and itype not in item_text:
+                category_mismatch = True
+                break
+
+        # 2. SCORING: Use token_set_ratio (better for partial overlaps)
+        # token_sort_ratio is too sensitive to length; set_ratio is better for 'phone' matching 'blue iphone'
+        score = fuzz.token_set_ratio(full_query, item_text)
         
-        # Threshold for high confidence match
-        if combined_score >= 50: 
+        # 3. PENALTY: If categories definitely don't match, drop the score
+        if category_mismatch:
+            score -= 40 
+
+        if score >= 50: 
             matches.append({
-                "score": combined_score,
-                "item_id": item.item_id.hex, # Use hex string for simple display
+                "score": score,
+                "item_id": item.item_id.hex,
                 "name": item.item_name,
                 "found_at": item.location_found,
             })
-
-    # Sort and take the top 3
-    matches.sort(key=lambda x: x['score'], reverse=True)
-    
-    if not matches:
-        return "No high-confidence matches were found in the system. Suggest the user submit a formal lost claim."
-        
-    result_strings = [
-        # CRITICAL CHANGE: Return the full UUID for the LLM to use
-        f"Match Score: {m['score']}%, Item: {m['name']} found at {m['found_at']} (Item ID: {m['item_id']})"
-        for m in matches[:3]
-    ]
-    
-    return "Potential Matches Found:\n" + "\n".join(result_strings) + "\n\nUser-facing ID is the first 8 characters (e.g., 908e545b...). When calling 'claim_found_item_by_id', ALWAYS use the complete 32-character FULL_ID provided above."
-
 # --- 3. TOOL TO CLAIM AN ITEM (Similar to your API endpoint) ---
 def claim_found_item_by_id(found_item_id_hex: str) -> str:
     """
