@@ -15,7 +15,7 @@ import base64
 from datetime import date
 
 from .forms import RegisterForm, FoundItemForm, LostClaimForm
-from .models import FoundItem, LostClaim
+from .models import FoundItem, LostClaim, ClaimRequest, ChatMessage
 
 # --------------------- GEMINI AI SETUP ---------------------
 import google.generativeai as genai
@@ -25,19 +25,19 @@ import numpy as np
 from numpy.linalg import norm
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
+
 # --------------------- AI HELPER FUNCTIONS ---------------------
 
 def describe_with_gemini(image_field):
-    """Generate concise description from uploaded image using Gemini Vision"""
     try:
         image_field.seek(0)
         image_data = image_field.read()
         ext = Path(image_field.name).suffix.lower()
         mime_type = mimetypes.guess_type("file" + ext)[0] or "image/jpeg"
 
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-2.0-flash") # Updated to stable flash
         response = model.generate_content([
-            "Describe this item CONCISELY in 3-5 sentences. Focus on UNIQUE features: color, brand, size, condition, logos, damage. Avoid general phrases.",
+            "Describe this item CONCISELY in 3-5 sentences. Focus on UNIQUE features: color, brand, size, condition, logos, damage.",
             {"mime_type": mime_type, "data": image_data}
         ])
         return response.text.strip()
@@ -45,7 +45,6 @@ def describe_with_gemini(image_field):
         return f"[AI description failed: {str(e)}]"
     finally:
         image_field.seek(0)
-
 
 def get_embedding(text):
     if not text.strip():
@@ -60,24 +59,22 @@ def get_embedding(text):
     except:
         return [0] * 768
 
-
 def cosine_similarity(a, b):
     a, b = np.array(a), np.array(b)
     if norm(a) == 0 or norm(b) == 0:
         return 0.0
     return np.dot(a, b) / (norm(a) * norm(b))
 
-
 def ai_text_similarity(t1, t2):
     return cosine_similarity(get_embedding(t1), get_embedding(t2)) * 100
-
 
 def ai_image_similarity(img1, img2):
     if not img1 or not img2:
         return 0
     try:
         img1.seek(0); img2.seek(0)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        # Logic to compare images via text description comparison for stability
         response = model.generate_content([
             "Compare these two images. Are they the same item? Answer ONLY with a number 0–100.",
             img1, img2
@@ -86,19 +83,11 @@ def ai_image_similarity(img1, img2):
         return float(match.group()) if match else 50
     except:
         return 50
-    finally:
-        for img in (img1, img2):
-            try:
-                img.seek(0)
-            except:
-                pass
-
 
 # --------------------- VIEWS ---------------------
 
 def home(request):
     return render(request, 'home.html')
-
 
 @login_required
 def report_found(request):
@@ -116,7 +105,6 @@ def report_found(request):
         form = FoundItemForm()
     return render(request, 'report_form.html', {'form': form, 'title': 'Report Found Item'})
 
-
 @login_required
 def report_lost(request):
     if request.method == 'POST':
@@ -127,105 +115,239 @@ def report_lost(request):
             if item.image:
                 item.description = describe_with_gemini(item.image) + ("\n\n" + item.description if item.description.strip() else "")
             item.save()
-            messages.success(request, "Lost item reported — AI analyzed your photo!")
+            messages.success(request, "Lost item reported!")
             return redirect('home')
     else:
         form = LostClaimForm()
     return render(request, 'report_form.html', {'form': form, 'title': 'Report Lost Item'})
 
-
-# REAL AI SMART SEARCH — FIXED TO SHOW RESULTS
-@login_required
-def smart_search_api(request):
-    query = request.GET.get('q', '').strip()
-    if not query:
-        return JsonResponse([], safe=False)
-
-    query_lower = query.lower()
-    query_emb = get_embedding(query)
-    results = []
-
-    all_items = list(FoundItem.objects.all()) + list(LostClaim.objects.all())
-
-    for item in all_items:
-        text = f"{item.item_name} {item.description}".lower().strip()
-        if not text:
-            continue
-
-        # 1. Embedding similarity
-        emb_sim = cosine_similarity(query_emb, get_embedding(text)) * 100
-
-        # 2. Keyword overlap fallback
-        query_words = set(query_lower.split())
-        item_words = set(text.split())
-        keyword_score = len(query_words & item_words) / len(query_words) * 80 if query_words else 0
-
-        # 3. Exact name match bonus
-        name_bonus = 50 if query_lower in item.item_name.lower() or item.item_name.lower() in query_lower else 0
-
-        # Final score
-        final_score = max(emb_sim, keyword_score) + name_bonus
-
-        if final_score >= 25:  # Lowered threshold
-            results.append({
-                'item_name': item.item_name,
-                'match': round(final_score, 1),
-                'type': 'found' if isinstance(item, FoundItem) else 'lost',
-                'image': item.image.url if item.image else None,
-                'description': item.description[:150] + ("..." if len(item.description) > 150 else item.description)
-            })
-
-    results.sort(key=lambda x: x['match'], reverse=True)
-    return JsonResponse(results[:10], safe=False)  # Show up to 10
-
-
 @login_required
 def claim_item(request, item_id):
     found_item = get_object_or_404(FoundItem, item_id=item_id)
+    
+    # 1. Validation Checks
     if found_item.reported_by == request.user:
         messages.error(request, "You cannot claim your own found item!")
         return redirect('found_list')
-    if found_item.claimed_by:
-        messages.warning(request, f"Already claimed by {found_item.claimed_by.username}")
-        return redirect('found_list')
 
+    existing_claim = ClaimRequest.objects.filter(found_item=found_item, claimant=request.user).first()
+    if existing_claim:
+        return redirect('chat_room', claim_id=existing_claim.id)
+
+    # 2. AI Matching Logic (FIXED TO PREVENT REPETITIVE 30% SCORES)
     user_lost_items = LostClaim.objects.filter(owner=request.user)
     matches = []
+    
+    # Common categories to detect mismatch
+    categories = ['phone', 'ring', 'key', 'wallet', 'bag', 'laptop', 'bottle', 'watch']
+    found_text = f"{found_item.item_name} {found_item.description}".lower()
 
     for lost in user_lost_items:
-        vision = ai_image_similarity(lost.image, found_item.image) if lost.image and found_item.image else 0
-        text = ai_text_similarity(f"{lost.item_name} {lost.description}", f"{found_item.item_name} {found_item.description}")
-        score = (vision * 0.6) + (text * 0.4)
-        if score >= 30:
+        lost_text = f"{lost.item_name} {lost.description}".lower()
+        
+        # Calculate Base AI scores
+        v_score = ai_image_similarity(lost.image, found_item.image) if lost.image and found_item.image else 0
+        t_score = ai_text_similarity(lost_text, found_text)
+        
+        total_score = (v_score * 0.6) + (t_score * 0.4)
+
+        # Apply Category Penalty (The Fix for the 30% issue)
+        for cat in categories:
+            if cat in lost_text and cat not in found_text:
+                total_score -= 40 # Heavily penalize mismatching types
+        
+        # Only show if score is meaningful
+        if total_score > 20:
             matches.append({
-                'lost_item': lost, 'match_score': round(score, 1),
-                'vision_score': round(vision, 1), 'text_score': round(text, 1)
+                'lost_item': lost, 
+                'match_score': max(0, round(total_score, 1)),
             })
 
-    matches.sort(key=lambda x: x['match_score'], reverse=True)
+    # Sort and take top 3
+    top_matches = sorted(matches, key=lambda x: x['match_score'], reverse=True)[:3]
 
+    # 3. Handle Form Submission
     if request.method == 'POST':
-        found_item.claimed_by = request.user
-        found_item.status = 'CLAIMED'
-        found_item.save()
-        messages.success(request, f"You successfully claimed '{found_item.item_name}'!")
-        return redirect('found_list')
+        proof = request.POST.get('proof_description')
+        if not proof:
+            messages.error(request, "Please provide some proof of ownership.")
+        else:
+            new_claim = ClaimRequest.objects.create(
+                found_item=found_item,
+                claimant=request.user,
+                proof_description=proof,
+                status='PENDING'
+            )
+            messages.success(request, "Claim request sent! You can now chat with the finder.")
+            return redirect('chat_room', claim_id=new_claim.id)
 
     return render(request, 'claim_match.html', {
-        'found_item': found_item, 'matches': matches,
-        'has_matches': len(matches) > 0, 'already_claimed': bool(found_item.claimed_by)
+        'found_item': found_item,
+        'matches': top_matches,
+        'has_matches': len(top_matches) > 0,
     })
 
+@login_required
+def finalize_claim(request, claim_id):
+    claim = get_object_or_404(ClaimRequest, id=claim_id)
+    
+    # Security: Only the person who FOUND the item can approve a claim
+    if request.user != claim.found_item.reported_by:
+        messages.error(request, "Only the finder can approve this claim.")
+        return redirect('chat_room', claim_id=claim.id)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'approve':
+            # 1. Update the claim status
+            claim.status = 'APPROVED'
+            claim.save()
+            
+            # 2. Update the actual item status so it's no longer 'PENDING'
+            item = claim.found_item
+            item.status = 'CLAIMED'
+            item.save()
+            
+            messages.success(request, "Claim approved! The item is now marked as returned.")
+            
+        elif action == 'reject':
+            claim.status = 'REJECTED'
+            claim.save()
+            messages.warning(request, "Claim rejected. The item is still available for others.")
+
+        return redirect('chat_room', claim_id=claim.id)
+    
+@login_required
+def my_activity(request):
+    # Items the user has reported as lost
+    my_lost_reports = LostClaim.objects.filter(owner=request.user).order_by('-date_lost')
+    
+    # Items the user has found and reported
+    my_found_reports = FoundItem.objects.filter(reported_by=request.user).order_by('-date_found')
+    
+    # Claims the user has made on other people's found items
+    my_claims_made = ClaimRequest.objects.filter(claimant=request.user).order_by('-created_at')
+    
+    # Claims other people have made on items this user found
+    claims_on_my_items = ClaimRequest.objects.filter(found_item__reported_by=request.user).order_by('-created_at')
+
+    return render(request, 'my_activity.html', {
+        'lost_reports': my_lost_reports,
+        'found_reports': my_found_reports,
+        'claims_made': my_claims_made,
+        'claims_received': claims_on_my_items
+    })
+
+@login_required
+
+def smart_search_api(request):
+
+    query = request.GET.get('q', '').strip()
+
+    if not query:
+
+        return JsonResponse([], safe=False)
+
+
+
+    query_lower = query.lower()
+
+    query_emb = get_embedding(query)
+
+    results = []
+
+
+
+    all_items = list(FoundItem.objects.all()) + list(LostClaim.objects.all())
+
+
+
+    for item in all_items:
+
+        text = f"{item.item_name} {item.description}".lower().strip()
+
+        if not text:
+
+            continue
+
+
+
+        # 1. Embedding similarity
+
+        emb_sim = cosine_similarity(query_emb, get_embedding(text)) * 100
+
+
+
+        # 2. Keyword overlap fallback
+
+        query_words = set(query_lower.split())
+
+        item_words = set(text.split())
+
+        keyword_score = len(query_words & item_words) / len(query_words) * 80 if query_words else 0
+
+
+
+        # 3. Exact name match bonus
+
+        name_bonus = 50 if query_lower in item.item_name.lower() or item.item_name.lower() in query_lower else 0
+
+
+
+        # Final score
+
+        final_score = max(emb_sim, keyword_score) + name_bonus
+
+
+
+        if final_score >= 25:  # Lowered threshold
+
+            results.append({
+
+                'item_name': item.item_name,
+
+                'match': round(final_score, 1),
+
+                'type': 'found' if isinstance(item, FoundItem) else 'lost',
+
+                'image': item.image.url if item.image else None,
+
+                'description': item.description[:150] + ("..." if len(item.description) > 150 else item.description)
+
+            })
+
+
+
+    results.sort(key=lambda x: x['match'], reverse=True)
+
+    return JsonResponse(results[:10], safe=False)  # Show up to 10
+
+@login_required
+def chat_room(request, claim_id):
+    claim = get_object_or_404(ClaimRequest, id=claim_id)
+    if request.user != claim.claimant and request.user != claim.found_item.reported_by:
+        return redirect('home')
+
+    if request.method == 'POST':
+        msg_text = request.POST.get('message')
+        if msg_text:
+            ChatMessage.objects.create(claim_request=claim, sender=request.user, message=msg_text)
+        return redirect('chat_room', claim_id=claim.id)
+
+    return render(request, 'chat_room.html', {
+        'claim': claim,
+        'chat_messages': claim.messages.all(),
+        'is_finder': request.user == claim.found_item.reported_by
+    })
 
 def found_list(request):
-    items = FoundItem.objects.all().order_by('-date_found')
+    items = FoundItem.objects.filter(status='PENDING').order_by('-date_found')
     return render(request, 'items_list.html', {'items': items, 'title': 'Found Items', 'type': 'found'})
-
 
 def lost_list(request):
     items = LostClaim.objects.all().order_by('-date_lost')
     return render(request, 'items_list.html', {'items': items, 'title': 'Lost Items', 'type': 'lost'})
-
 
 def register(request):
     if request.method == 'POST':
@@ -233,7 +355,6 @@ def register(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
-            messages.success(request, f"Welcome {user.username}!")
             return redirect('home')
     else:
         form = RegisterForm()
