@@ -17,4 +17,7 @@ urlpatterns = [
     path('claim/<uuid:item_id>/', views.claim_item, name='claim_item'),
     path('api/smart-search/', views.smart_search_api, name='smart_search_api'),
     path('api/chatbot/', ChatbotView.as_view(), name='chatbot'),
+    path('chat/<uuid:claim_id>/', views.chat_room, name='chat_room'),
+    path('claim/finalize/<uuid:claim_id>/', views.finalize_claim, name='finalize_claim'),
+    path('my-activity/', views.my_activity, name='my_activity'),
 ]
