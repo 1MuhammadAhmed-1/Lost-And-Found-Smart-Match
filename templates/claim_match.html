@@ -1,73 +1,101 @@
 {% extends 'base.html' %}
-{% block content %}
-<div class="min-h-screen bg-gradient-to-b from-base-200 to-base-100 py-12">
-    <div class="max-w-5xl mx-auto px-4">
-        <h1 class="text-5xl font-bold text-center mb-12 text-primary">AI Match Analysis</h1>
+{% block title %}Claim Verification — FoundIt{% endblock %}
 
-        <!-- Found Item -->
-        <div class="card bg-base-100 shadow-2xl mb-10">
-            <div class="card-body text-center">
-                <h2 class="text-3xl font-bold text-success">Found Item</h2>
-                {% if found_item.image %}
-                    <img src="{{ found_item.image.url }}" class="mx-auto rounded-2xl max-w-lg shadow-xl mt-6">
-                {% endif %}
-                <h3 class="text-2xl font-bold mt-6">{{ found_item.item_name }}</h3>
-                <p class="text-lg mt-4">{{ found_item.description }}</p>
-                <p class="text-sm text-gray-600 mt-6">
-                    Found by: <strong>{{ found_item.reported_by.username }}</strong> on {{ found_item.date_found }}
-                </p>
+{% block content %}
+<div class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-12">
+    <div class="max-w-5xl mx-auto px-4">
+        
+        <div class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
+                Claim <span class="text-indigo-600">Verification</span>
+            </h1>
+            <p class="text-slate-500 mt-4 text-lg">Let's make sure this item belongs to you.</p>
+        </div>
+
+        <div class="card lg:card-side bg-white shadow-xl border border-slate-200 mb-10 overflow-hidden">
+            {% if found_item.image %}
+            <figure class="lg:w-1/2 bg-slate-200">
+                <img src="{{ found_item.image.url }}" alt="{{ found_item.item_name }}" class="h-full w-full object-cover" />
+            </figure>
+            {% endif %}
+            <div class="card-body lg:w-1/2">
+                <div class="flex justify-between items-start">
+                    <span class="badge badge-success gap-2 text-white font-bold p-3">
+                        FOUND ITEM
+                    </span>
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        Ref: {{ found_item.item_id|stringformat:".8s" }}
+                    </span>
+                </div>
+                <h2 class="card-title text-3xl font-black text-slate-800 mt-2">{{ found_item.item_name }}</h2>
+                <p class="text-slate-600 mt-2 italic">"{{ found_item.description }}"</p>
+                
+                <div class="divider"></div>
+                
+                <div class="flex items-center gap-3 text-sm text-slate-500">
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                        {{ found_item.reported_by.username|first|upper }}
+                    </div>
+                    <span>Reported by <strong>{{ found_item.reported_by.username }}</strong></span>
+                </div>
             </div>
         </div>
 
-        <!-- Already Claimed -->
-        {% if already_claimed %}
-            <div class="alert alert-error shadow-lg text-center text-2xl">
-                This item has already been claimed by someone else.
-            </div>
-            <div class="text-center mt-8">
-                <a href="{% url 'found_list' %}" class="btn btn-ghost btn-lg">← Back to Found Items</a>
+        {% if matches %}
+            <div class="mb-10 animate__animated animate__fadeIn">
+                <h3 class="text-xl font-bold mb-6 text-slate-700 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    Top AI Matches with your Lost Reports
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {% for match in matches %}
+                    <div class="bg-white border-2 border-indigo-100 p-5 rounded-2xl shadow-sm hover:border-indigo-400 transition-colors">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-3xl font-black text-indigo-600">{{ match.match_score }}%</span>
+                            <div class="badge badge-ghost text-[10px] font-bold">MATCH</div>
+                        </div>
+                        <p class="text-sm font-bold text-slate-800 mb-1">"{{ match.lost_item.item_name }}"</p>
+                        <p class="text-[10px] uppercase text-slate-400 font-bold">Lost: {{ match.lost_item.date_lost }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         {% else %}
-
-            <!-- Matches Found -->
-            {% if has_matches %}
-                <div class="alert alert-success shadow-lg text-center text-2xl mb-8">
-                    AI found {{ matches|length }} strong match{{ matches|pluralize }} with your lost item{{ matches|pluralize:"s" }}!
-                </div>
-
-                {% for match in matches %}
-                    <div class="alert alert-info shadow-lg mb-6 p-8">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <div class="text-4xl font-black text-success">{{ match.match_score }}% Match</div>
-                                <p class="text-xl mt-2">Your lost item: <strong>"{{ match.lost_item.item_name }}"</strong></p>
-                                <p class="text-sm opacity-80">
-                                    Vision: {{ match.vision_score }}% • Text: {{ match.text_score }}%
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <div class="alert alert-warning shadow-lg text-center text-xl py-12">
-                    No strong AI matches found with your lost items.<br>
-                    <span class="text-lg opacity-75">But you can still claim it if you're sure it's yours!</span>
-                </div>
-            {% endif %}
-
-            <!-- FINAL CLAIM BUTTON -->
-            <div class="text-center mt-12">
-                <form method="post">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-success btn-lg text-2xl px-16 py-8 shadow-2xl hover:shadow-success hover:scale-105 transition-all">
-                        YES, THIS IS MY ITEM — CLAIM NOW!
-                    </button>
-                </form>
-                <div class="mt-6">
-                    <a href="{% url 'found_list' %}" class="btn btn-ghost">← Cancel and go back</a>
-                </div>
+            <div class="alert bg-amber-50 border-amber-200 shadow-sm mb-10 text-amber-800">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <span>Note: No exact AI matches found in your profile, but you can still submit a manual claim.</span>
             </div>
         {% endif %}
+
+        <div class="card bg-slate-900 shadow-2xl overflow-hidden animate__animated animate__fadeInUp">
+            <div class="card-body p-8 md:p-12">
+                <div class="max-w-2xl mx-auto text-center">
+                    <h2 class="text-3xl font-bold text-white mb-4">Ownership Statement</h2>
+                    <p class="text-slate-400 mb-8">Describe unique details (scratches, stickers, or contents) that only the owner would know. This initiates an anonymous chat with the person who found it.</p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="form-control">
+                            <textarea 
+                                name="proof_description" 
+                                class="textarea textarea-bordered w-full h-40 text-lg bg-slate-800 border-slate-700 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 mb-6 placeholder:text-slate-500" 
+                                placeholder="Example: 'The blue water bottle has a sticker of a mountain on the bottom and a small dent near the cap...'"
+                                required></textarea>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-4 justify-center mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg px-12 shadow-xl shadow-indigo-900 border-none rounded-2xl">
+                                Send Claim Request
+                            </button>
+                            <a href="{% url 'found_list' %}" class="btn btn-ghost btn-lg text-slate-400 hover:text-white rounded-2xl">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 {% endblock %}

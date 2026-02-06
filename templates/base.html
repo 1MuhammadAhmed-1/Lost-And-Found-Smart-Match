@@ -30,6 +30,11 @@
         #chat-messages::-webkit-scrollbar { width: 4px; }
         #chat-messages::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         .chat-bubble { white-space: pre-wrap; word-break: break-word; }
+        
+        /* Smooth transition for the chatbot */
+        #chat-window {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-900">
@@ -44,8 +49,18 @@
             <div class="flex-none gap-2 md:gap-4">
                 {% if user.is_authenticated %}
                     <div class="hidden lg:block text-sm font-medium text-slate-500 mr-2">Hi, {{ user.username }}</div>
+                    
+                    <a href="{% url 'my_activity' %}" class="btn btn-ghost btn-sm rounded-xl text-slate-600 relative">
+                        Activity
+                        <span class="absolute top-1 right-1 flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                        </span>
+                    </a>
+
                     <a href="{% url 'report_lost' %}" class="btn btn-ghost btn-sm rounded-xl text-slate-600">Lost?</a>
                     <a href="{% url 'report_found' %}" class="btn btn-primary btn-sm rounded-xl px-5 text-white shadow-md shadow-indigo-200 border-none">Found Something</a>
+                    
                     <form method="post" action="{% url 'logout' %}" class="inline">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-circle btn-ghost btn-sm text-slate-400" title="Logout">
@@ -53,7 +68,7 @@
                         </button>
                     </form>
                 {% else %}
-                    <a href="{% url 'login' %}" class="btn btn-ghost btn-sm">Sign In</a>
+                    <a href="{% url 'login' %}" class="btn btn-ghost btn-sm text-slate-600">Sign In</a>
                     <a href="{% url 'register' %}" class="btn btn-primary btn-sm rounded-xl text-white border-none px-6">Join</a>
                 {% endif %}
             </div>
@@ -61,7 +76,16 @@
     </nav>
 
     <main class="min-h-[calc(100vh-80px)]">
-        {% include 'messages.html' %}
+        <div class="max-w-7xl mx-auto px-4 mt-4">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert {% if message.tags == 'error' %}alert-error text-white{% else %}alert-success text-white{% endif %} shadow-lg mb-4 animate__animated animate__fadeInDown">
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        
         {% block content %}{% endblock %}
     </main>
 
@@ -70,7 +94,7 @@
             <svg class="w-6 h-6" fill="white" viewBox="0 0 24 24"><path d="M12 2C6.47 2 2 6.47 2 12c0 1.88.52 3.65 1.44 5.15L2 22l4.85-1.44C8.35 21.48 10.12 22 12 22c5.53 0 10-4.47 10-10S17.53 2 12 2zm0 18c-1.65 0-3.2-.44-4.54-1.21l-3.23.96.96-3.23C4.44 15.2 4 13.65 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z"/></svg>
         </button>
 
-        <div id="chat-window" class="hidden absolute bottom-20 right-0 w-[90vw] md:w-[400px] h-[600px] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right" style="opacity: 0; transform: scale(0.9) translateY(20px);">
+        <div id="chat-window" class="hidden absolute bottom-20 right-0 w-[90vw] md:w-[400px] h-[600px] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden origin-bottom-right" style="opacity: 0; transform: scale(0.9) translateY(20px);">
             <div class="bg-slate-900 p-5 flex justify-between items-center text-white">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center font-bold text-xs italic">AI</div>
@@ -93,7 +117,7 @@
 
             <div class="p-4 bg-white border-t border-slate-100">
                 <div class="flex items-center gap-2 bg-slate-100 rounded-2xl px-3 py-1 border border-slate-200">
-                    <button id="chat-upload-btn" class="p-2 text-slate-400 hover:text-indigo-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></button>
+                    <button id="chat-upload-btn" title="Upload Image" class="p-2 text-slate-400 hover:text-indigo-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></button>
                     <input type="text" id="chat-input" placeholder="Ask something..." class="bg-transparent border-none focus:ring-0 text-sm w-full py-3 outline-none"/>
                     <button id="chat-send" class="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg></button>
                 </div>
@@ -127,16 +151,25 @@
         const chatMessages = document.getElementById('chat-messages');
 
         chatbotToggle.onclick = () => {
-            chatWindow.classList.toggle('hidden');
-            if (!chatWindow.classList.contains('hidden')) {
-                setTimeout(() => { chatWindow.style.opacity = '1'; chatWindow.style.transform = 'scale(1) translateY(0)'; }, 10);
+            const isHidden = chatWindow.classList.contains('hidden');
+            if (isHidden) {
+                chatWindow.classList.remove('hidden');
+                setTimeout(() => { 
+                    chatWindow.style.opacity = '1'; 
+                    chatWindow.style.transform = 'scale(1) translateY(0)'; 
+                }, 10);
+            } else {
+                closeChat();
             }
         };
 
-        chatClose.onclick = () => {
-            chatWindow.style.opacity = '0'; chatWindow.style.transform = 'scale(0.9) translateY(20px)';
+        function closeChat() {
+            chatWindow.style.opacity = '0'; 
+            chatWindow.style.transform = 'scale(0.9) translateY(20px)';
             setTimeout(() => chatWindow.classList.add('hidden'), 300);
-        };
+        }
+
+        chatClose.onclick = closeChat;
 
         function addMessage(text, direction, isTyping = false) {
             const wrapper = document.createElement('div');
@@ -156,10 +189,18 @@
             chatInput.value = '';
             const typing = addMessage('', 'chat-start', true);
             try {
-                const res = await fetch('/api/chatbot/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken }, body: JSON.stringify({ question }) });
+                const res = await fetch('/api/chatbot/', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken }, 
+                    body: JSON.stringify({ question }) 
+                });
                 const data = await res.json();
-                typing.remove(); addMessage(data.answer, 'chat-start');
-            } catch (e) { typing.remove(); addMessage("Error.", 'chat-start'); }
+                typing.remove(); 
+                addMessage(data.answer, 'chat-start');
+            } catch (e) { 
+                typing.remove(); 
+                addMessage("Sorry, I'm having trouble connecting right now.", 'chat-start'); 
+            }
         }
 
         chatUploadBtn.onclick = () => {
@@ -167,14 +208,24 @@
             fileInput.type = 'file'; fileInput.accept = 'image/*';
             fileInput.onchange = async () => {
                 const file = fileInput.files[0]; if (!file) return;
-                const reader = new FileReader(); reader.readAsDataURL(file);
+                const reader = new FileReader(); 
+                reader.readAsDataURL(file);
                 reader.onload = async () => {
                     addMessage('Sent a photo...', 'chat-end');
                     const typing = addMessage('', 'chat-start', true);
                     try {
-                        const res = await fetch('/api/chatbot/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken }, body: JSON.stringify({ image: reader.result }) });
-                        const data = await res.json(); typing.remove(); addMessage(data.answer, 'chat-start');
-                    } catch (e) { typing.remove(); addMessage("Failed.", 'chat-start'); }
+                        const res = await fetch('/api/chatbot/', { 
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken }, 
+                            body: JSON.stringify({ image: reader.result }) 
+                        });
+                        const data = await res.json(); 
+                        typing.remove(); 
+                        addMessage(data.answer, 'chat-start');
+                    } catch (e) { 
+                        typing.remove(); 
+                        addMessage("Image upload failed.", 'chat-start'); 
+                    }
                 };
             };
             fileInput.click();
