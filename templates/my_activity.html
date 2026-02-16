@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}My Activity — FoundIt{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-50 py-10">
+    <div class="max-w-6xl mx-auto px-4">
+        <h1 class="text-3xl font-black text-slate-800 mb-8">My <span class="text-indigo-600">Activity</span></h1>
+
+        <div role="tablist" class="tabs tabs-lifted tabs-lg">
+            
+            <input type="radio" name="my_tabs" role="tab" class="tab" aria-label="Active Chats" checked />
+            <div role="tabpanel" class="tab-content bg-white border-base-300 rounded-box p-6">
+                <h3 class="text-xl font-bold mb-4">Active Claim Conversations</h3>
+                <div class="grid gap-4">
+                    {% for claim in claims_made %}
+                        <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                            <div>
+                                <span class="badge badge-primary mb-1">Claiming</span>
+                                <p class="font-bold text-slate-800">{{ claim.found_item.item_name }}</p>
+                                <p class="text-xs text-slate-500">Status: {{ claim.status }}</p>
+                            </div>
+                            <a href="{% url 'chat_room' claim.id %}" class="btn btn-sm btn-outline btn-primary">Open Chat</a>
+                        </div>
+                    {% empty %}
+                        <p class="text-slate-400 italic">You haven't made any claims yet.</p>
+                    {% endfor %}
+
+                    <div class="divider"></div>
+
+                    <h3 class="text-xl font-bold mb-4">Claims on Items I Found</h3>
+                    {% for claim in claims_received %}
+                        <div class="flex items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                            <div>
+                                <span class="badge badge-secondary mb-1">Received</span>
+                                <p class="font-bold text-slate-800">{{ claim.claimant.username }} wants to claim your found "{{ claim.found_item.item_name }}"</p>
+                            </div>
+                            <a href="{% url 'chat_room' claim.id %}" class="btn btn-sm btn-secondary">Review Proof</a>
+                        </div>
+                    {% empty %}
+                        <p class="text-slate-400 italic">No one has claimed your found items yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <input type="radio" name="my_tabs" role="tab" class="tab" aria-label="My Reports" />
+            <div role="tabpanel" class="tab-content bg-white border-base-300 rounded-box p-6">
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-lg font-bold mb-4 text-red-600">Lost Reports</h3>
+                        {% for item in lost_reports %}
+                            <div class="mb-2 p-3 bg-white border rounded-lg flex justify-between">
+                                <span>{{ item.item_name }}</span>
+                                <span class="text-xs text-slate-400">{{ item.date_lost }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold mb-4 text-green-600">Found Reports</h3>
+                        {% for item in found_reports %}
+                            <div class="mb-2 p-3 bg-white border rounded-lg flex justify-between">
+                                <span>{{ item.item_name }}</span>
+                                <span class="badge badge-ghost badge-sm">{{ item.status }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

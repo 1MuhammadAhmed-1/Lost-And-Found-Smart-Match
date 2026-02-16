@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-50 py-8">
+    <div class="max-w-4xl mx-auto px-4">
+        
+        <div class="bg-white rounded-t-2xl shadow-sm border border-slate-200 p-6 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xl">
+                    {% if is_finder %} F {% else %} C {% endif %}
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-800">
+                        Chatting with {% if is_finder %}Claimant{% else %}Finder{% endif %}
+                    </h1>
+                    <p class="text-sm text-slate-500">Item: <strong>{{ claim.found_item.item_name }}</strong></p>
+                </div>
+            </div>
+            <a href="{% url 'my_activity' %}" class="btn btn-ghost btn-sm">Close Chat</a>
+        </div>
+
+        <div class="bg-white border-x border-slate-200 h-[500px] overflow-y-auto p-6 flex flex-col gap-4" id="chat-messages">
+            <div class="chat chat-start">
+                <div class="chat-bubble chat-bubble-info shadow-sm">
+                    <strong class="block mb-1 border-b border-blue-200">Proof of Ownership submitted:</strong>
+                    "{{ claim.proof_description }}"
+                </div>
+            </div>
+
+            {% for message in chat_messages %}
+                <div class="chat {% if message.sender == request.user %}chat-end{% else %}chat-start{% endif %}">
+                    <div class="chat-header text-xs opacity-50 mb-1">
+                        {{ message.sender.username }}
+                    </div>
+                    <div class="chat-bubble {% if message.sender == request.user %}chat-bubble-primary shadow-md{% else %}bg-slate-200 text-slate-800{% endif %}">
+                        {{ message.message }}
+                    </div>
+                    <div class="chat-footer opacity-50 text-[10px] mt-1">
+                        {{ message.timestamp|date:"H:i" }}
+                    </div>
+                </div>
+            {% empty %}
+                <p class="text-center text-slate-400 mt-10 italic text-sm">No messages yet. Start the conversation!</p>
+            {% endfor %}
+        </div>
+
+        <div class="bg-indigo-900 text-white border-x border-slate-200 p-6">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        Status: 
+                        <span class="badge badge-outline border-indigo-300 text-indigo-100 uppercase tracking-wider text-[10px] font-bold">
+                            {{ claim.status }}
+                        </span>
+                    </h3>
+                    
+                    <p class="text-indigo-200 text-sm mt-1">
+                        {% if claim.status == 'PENDING' %}
+                            Finder is reviewing the proof provided.
+                        {% elif claim.status == 'APPROVED' %}
+                            <span class="text-green-400 font-bold">✓ This claim has been finalized and approved!</span>
+                        {% elif claim.status == 'REJECTED' %}
+                            <span class="text-red-400 font-bold">✕ This claim was declined.</span>
+                        {% endif %}
+                    </p>
+                </div>
+
+                {% if is_finder and claim.status == 'PENDING' %}
+                    <form action="{% url 'finalize_claim' claim.id %}" method="post" class="flex gap-2">
+                        {% csrf_token %}
+                        <button type="submit" name="action" value="approve" class="btn btn-success btn-sm border-none text-white px-4">
+                            Approve & Close
+                        </button>
+                        <button type="submit" name="action" value="reject" class="btn btn-error btn-outline btn-sm text-white hover:bg-red-600 px-4">
+                            Reject
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="bg-slate-100 rounded-b-2xl border border-slate-200 p-4 shadow-inner">
+            {% if claim.status == 'PENDING' %}
+                <form method="post" class="flex gap-2">
+                    {% csrf_token %}
+                    <input 
+                        type="text" 
+                        name="message" 
+                        placeholder="Type your message here..." 
+                        class="input input-bordered flex-1 focus:ring-2 focus:ring-indigo-500 rounded-xl"
+                        required
+                        autocomplete="off"
+                    >
+                    <button type="submit" class="btn btn-primary px-8 rounded-xl">Send</button>
+                </form>
+            {% else %}
+                <p class="text-center text-slate-500 text-sm py-2">The chat is closed because the claim is finalized.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // Auto-scroll to bottom of chat
+    const chatBox = document.getElementById('chat-messages');
+    chatBox.scrollTop = chatBox.scrollHeight;
+</script>
+{% endblock %}
